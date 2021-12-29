@@ -2,9 +2,17 @@
 
 pub mod forceatlas;
 pub mod util;
+pub mod run_script;
+pub mod io;
 
 #[cfg(test)]
-mod tests {
+mod test {
+    use std::path::Path;
+    use crate::run_script::*;
+
     #[test]
-    fn test_canetscience() {}
+    fn ca_netscience() {
+        let path = Path::new("res/ca-netscience/ca-netscience.mtx");
+        run_script (path, 2)
+    }
 }

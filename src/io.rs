@@ -55,10 +55,11 @@ impl MatrixMarket {
     }
 
     pub fn to_sym_coo(&self) -> CooMatrix<f32> {
-        assert_eq!(self.nrows, self.ncols);
+        // assert_eq!(self.nrows, self.ncols);
         assert_eq!(self.row_indices.len(), self.col_indices.len());
         assert_eq!(self.row_indices.len(), self.values.len());
-        let mut coo = CooMatrix::new(self.nrows + 1, self.ncols + 1);
+        let nvertices = self.nrows.max(self.ncols);
+        let mut coo = CooMatrix::new(nvertices + 1, nvertices + 1);
         for i in 0..self.nrows {
             coo.push(self.row_indices[i], self.col_indices[i], self.values[i]);
             coo.push(self.col_indices[i], self.row_indices[i], self.values[i]);
@@ -67,15 +68,3 @@ impl MatrixMarket {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    // not a real test
-    #[test]
-    fn ca_netscience() {
-        let path = Path::new("res/ca-netscience/ca-netscience.mtx");
-        let mm = MatrixMarket::read(&path).unwrap();
-        let coo = mm.to_coo();
-    }
-}

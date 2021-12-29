@@ -17,7 +17,7 @@ pub fn magnitude(v: &[f32]) -> f32 {
     sum.sqrt()
 }
 
-fn normalize(dim: usize, coords: &mut Vec<Vec<f32>>) {
+pub fn normalize(dim: usize, coords: &mut Vec<Vec<f32>>) {
     let n = coords.len();
 
     for i in 0..n {

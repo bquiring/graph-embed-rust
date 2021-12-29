@@ -87,6 +87,7 @@ pub fn force_atlas(
                 }
             }
 
+
             for k2 in I[i]..I[i + 1] {
                 let j = J[k2];
                 let dis_ij = distance(&coords[i], &coords[j]).max(epsilon);
@@ -127,18 +128,16 @@ pub fn force_atlas(
         }
 
         let mut globalSwing = 0.0;
-        for i in 0..n {
-            globalSwing += ((deg[i] + 1.0) * swing[i]).max(epsilon);
-        }
-
-        // TDOO: ???
+        //for i in 0..n {
+        //    globalSwing += ((deg[i] + 1.0) * swing[i]).max(epsilon);
+        //}
         globalSwing = 1.0;
 
         let mut globalTraction = 0.0;
-        // for i in 0..n; {
-        //     let traction_i = distance (&forces[i], &forces_prev[i]) / 2.0;
-        //     globalTraction += (deg[i]+1.0) / traction_i;
-        // }
+        //for i in 0..n {
+        //    let traction_i = distance (&forces[i], &forces_prev[i]) / 2.0;
+        //    globalTraction += (deg[i]+1.0) / traction_i;
+        //}
         globalTraction = 1.0;
 
         let globalSpeed = args.tolerate * globalTraction / globalSwing;

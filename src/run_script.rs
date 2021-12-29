@@ -1,15 +1,18 @@
 
 use nalgebra_sparse::csr::CsrMatrix;
 use std::process::Command;
-use rand;
+use rand::Rng;
 use std::path::Path;
 use std::fs::File;
 use std::io::Write;
+use crate::util::*;
+use crate::forceatlas::*;
+use crate::io::*;
 
-fn run_script (graph_path : &Path, dim : usize) {
+pub fn run_script (graph_path : &Path, dim : usize) {
 
-    let mm = MatrixMarket::read(&path).unwrap();
-    let coo = mm.to_coo();
+    let mm = MatrixMarket::read(graph_path).unwrap();
+    let coo = mm.to_sym_coo();
     let m = CsrMatrix::from(&coo);
 
     assert!(m.nrows() == m.ncols());
@@ -17,32 +20,35 @@ fn run_script (graph_path : &Path, dim : usize) {
 
     let mut coords = vec![vec![0.0; dim]; m.nrows()];
 
-    let mut rng = rand::task_rng();
+    let mut rng = rand::thread_rng();
     for i in 0..n {
-        coords[i] = rng.gen_range (-1.0, 1.0);
+        for k in 0..dim {
+            coords[i][k] = rng.gen_range (-10.0..10.0);
+        }
     }
     
-    force_atlas (&m, dim, &coords, 1000, ForceAtlasArgs::default())
+    force_atlas (&m, dim, &mut coords, 300, ForceAtlasArgs::default());
+    normalize(dim, &mut coords);
 
     let part_path = graph_path.with_extension ("part");
     {
-        let mut part_file = File::create(part_path)?;
-        write!(part_file, format!("{} 1\n", n));
-        write!(part_file, format!("{}\n", n));
+        let mut part_file = File::create(part_path.clone()).unwrap();
+        write!(part_file, "{} 1\n", n).unwrap();
+        write!(part_file, "{}\n", n).unwrap();
         for i in 0..n {
-            write!(part_file, format!("{} ", i));
+            write!(part_file, "{} {}\n", i, 0).unwrap();
         }
-        write!("\n");
+        write!(part_file, "\n").unwrap();
     }
 
-    let coords_path = graph_path.with_extension ("coord");
+    let coords_path = graph_path.with_extension ("coords");
     {
-        let mut coords_file = File::create(coords_path)?;
+        let mut coords_file = File::create(coords_path.clone()).unwrap();
         for i in 0..n {
             for k in 0..dim {
-                write!(coords_file, format!("{} ", coords[i][k]));
+                write!(coords_file, "{} ", coords[i][k]).unwrap();
             }
-            write!("\n");
+            write!(coords_file, "\n").unwrap();
         }
     }
 
@@ -51,13 +57,13 @@ fn run_script (graph_path : &Path, dim : usize) {
     let output =
         Command::new("python3")
         .args(["scripts/plot-graph.py",
-               "-graph", graph_path,
-               "-part", partpath,
-               "-coords", coordspath,
-               "-o", plot_path])
+               "-graph", graph_path.to_str().unwrap(),
+               "-part", part_path.to_str().unwrap(),
+               "-coords", coords_path.to_str().unwrap(),
+               "-o", plot_path.to_str().unwrap()])
         .output()
         .expect("failed to execute process");
 
-
-
+    println!("{:?}", output);
 }
+

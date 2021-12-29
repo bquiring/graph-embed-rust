@@ -4,7 +4,7 @@ import numpy
 #======
 
 import plotly
-import plotly.plotly as py
+# from chart_studio import plotly
 import plotly.graph_objs as go
 
 #======
@@ -34,12 +34,12 @@ coordspath = args.coordspath
 #balls = [(stuff[0], stuff[1], stuff[2], stuff[3], stuff[4], stuff[5] if len(stuff) >= 3+3 else 0.0) for stuff in balls]
 
 coordsfile = open(coordspath)
-coords = [[float(i) for i in line.split(" ")] for line in coordsfile.readlines()]
+coords = [[float(i) for i in line.strip().split(" ")] for line in coordsfile.readlines()]
 coords = [coord if len(coord) > 2 else [coord[0], coord[1], 0.0] for coord in coords]
 #print(coords)
 
 partfile = open(partpath)
-n, K = partfile.readline().split(" ")
+n, K = partfile.readline().strip().split(" ")
 n = int(n)
 K = int(K)
 partition_sizes = [int(i) for i in partfile.readline().strip().split(" ")]
@@ -51,7 +51,7 @@ for i in range(K):
     partitions.append(partition)
 
 graphfile = open(graphpath)
-edges = [(int(line.split(" ")[0]), int(line.split(" ")[1])) for line in graphfile.readlines()]
+edges = [(int(line.strip().split(" ")[0]), int(line.strip().split(" ")[1])) for line in graphfile.readlines()]
 
 #======
 
