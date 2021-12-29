@@ -13,9 +13,34 @@ pub struct MatrixMarket {
     ncols: usize,
 }
 
+#[derive(Debug)]
+pub enum MmError {
+    Parse(ParseError),
+    Io(io::Error),
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    ExpectedRow,
+    ExpectedCol,
+    ExpectedValue,
+}
+
+impl From<io::Error> for MmError {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
+impl From<ParseError> for MmError {
+    fn from(e: ParseError) -> Self {
+        Self::Parse(e)
+    }
+}
+
 impl MatrixMarket {
     // TODO: error on bad input...
-    pub fn read(path: &Path) -> io::Result<Self> {
+    pub fn read(path: &Path) -> Result<Self, MmError> {
         let f = File::open(path)?;
         let reader = BufReader::new(f);
 
@@ -35,9 +60,21 @@ impl MatrixMarket {
             // read data
             // TODO: sanitize
             let mut split = line.split_whitespace();
-            let row: usize = split.next().unwrap().parse().unwrap();
-            let col: usize = split.next().unwrap().parse().unwrap();
-            let value: f64 = split.next().unwrap().parse().unwrap();
+            let row: usize = split
+                .next()
+                .ok_or(ParseError::ExpectedRow)?
+                .parse()
+                .unwrap();
+            let col: usize = split
+                .next()
+                .ok_or(ParseError::ExpectedCol)?
+                .parse()
+                .unwrap();
+            let value: f64 = split
+                .next()
+                .ok_or(ParseError::ExpectedValue)?
+                .parse()
+                .unwrap();
             row_indices.push(row);
             col_indices.push(col);
             values.push(value);
@@ -55,7 +92,6 @@ impl MatrixMarket {
     }
 
     pub fn to_sym_coo(&self) -> CooMatrix<f64> {
-        // assert_eq!(self.nrows, self.ncols);
         assert_eq!(self.row_indices.len(), self.col_indices.len());
         assert_eq!(self.row_indices.len(), self.values.len());
         let nvertices = self.nrows.max(self.ncols);
@@ -67,4 +103,3 @@ impl MatrixMarket {
         coo
     }
 }
-

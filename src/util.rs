@@ -1,5 +1,5 @@
 pub fn distance(v1: &[f64], v2: &[f64]) -> f64 {
-    assert!(v1.len() == v2.len());
+    assert_eq!(v1.len(), v2.len());
     let mut sum = 0.0;
     for i in 0..v1.len() {
         let d = v2[i] - v1[i];
@@ -21,7 +21,7 @@ pub fn normalize(dim: usize, coords: &mut Vec<Vec<f64>>) {
     let n = coords.len();
 
     for i in 0..n {
-        assert!(coords[i].len() == dim);
+        assert_eq!(coords[i].len(), dim);
     }
 
     // center coords at 0
@@ -31,6 +31,7 @@ pub fn normalize(dim: usize, coords: &mut Vec<Vec<f64>>) {
             avg[k] += coords[i][k];
         }
     }
+
     for k in 0..dim {
         avg[k] /= n as f64;
     }
@@ -52,7 +53,7 @@ pub fn normalize(dim: usize, coords: &mut Vec<Vec<f64>>) {
 
     for i in 0..n {
         for k in 0..dim {
-            coords[i][k] = coords[i][k] / max_length;
+            coords[i][k] /= max_length;
         }
     }
 }
