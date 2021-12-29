@@ -32,7 +32,7 @@ impl Default for ForceAtlasArgs {
 }
 
 pub fn force_atlas(
-    matrix: CsrMatrix<f32>,
+    matrix: &CsrMatrix<f32>,
     dim: usize,
     coords: &mut Vec<Vec<f32>>,
     iterations: usize,
