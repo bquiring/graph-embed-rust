@@ -1,4 +1,4 @@
-pub fn distance(v1: &[f32], v2: &[f32]) -> f32 {
+pub fn distance(v1: &[f64], v2: &[f64]) -> f64 {
     assert!(v1.len() == v2.len());
     let mut sum = 0.0;
     for i in 0..v1.len() {
@@ -8,7 +8,7 @@ pub fn distance(v1: &[f32], v2: &[f32]) -> f32 {
     sum.sqrt()
 }
 
-pub fn magnitude(v: &[f32]) -> f32 {
+pub fn magnitude(v: &[f64]) -> f64 {
     let mut sum = 0.0;
     for i in 0..v.len() {
         let d = v[i];
@@ -17,7 +17,7 @@ pub fn magnitude(v: &[f32]) -> f32 {
     sum.sqrt()
 }
 
-pub fn normalize(dim: usize, coords: &mut Vec<Vec<f32>>) {
+pub fn normalize(dim: usize, coords: &mut Vec<Vec<f64>>) {
     let n = coords.len();
 
     for i in 0..n {
@@ -32,7 +32,7 @@ pub fn normalize(dim: usize, coords: &mut Vec<Vec<f32>>) {
         }
     }
     for k in 0..dim {
-        avg[k] /= n as f32;
+        avg[k] /= n as f64;
     }
 
     for i in 0..n {

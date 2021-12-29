@@ -2,13 +2,13 @@ use crate::util::*;
 use nalgebra_sparse::csr::CsrMatrix;
 
 pub struct ForceAtlasArgs {
-    ks: f32,
-    ksmax: f32,
-    repel: f32,
-    attract: f32,
-    gravity: f32,
-    delta: f32,
-    tolerate: f32,
+    ks: f64,
+    ksmax: f64,
+    repel: f64,
+    attract: f64,
+    gravity: f64,
+    delta: f64,
+    tolerate: f64,
     useWeights: bool,
     linlog: bool,
     nohubs: bool,
@@ -32,9 +32,9 @@ impl Default for ForceAtlasArgs {
 }
 
 pub fn force_atlas(
-    matrix: &CsrMatrix<f32>,
+    matrix: &CsrMatrix<f64>,
     dim: usize,
-    coords: &mut Vec<Vec<f32>>,
+    coords: &mut Vec<Vec<f64>>,
     iterations: usize,
     args: ForceAtlasArgs,
 ) {
@@ -55,12 +55,12 @@ pub fn force_atlas(
     let mut deg = vec![0.0; n];
     if args.useWeights {
         for i in 0..n {
-            let sum = D[I[i]..I[i + 1]].iter().sum();
-            deg[i] = sum;
+            let sum : f64 = D[I[i]..I[i + 1]].iter().sum();
+            deg[i] = sum + 1.0;
         }
     } else {
         for i in 0..n {
-            deg[i] = (I[i + 1] - I[i]) as f32;
+            deg[i] = (I[i + 1] - I[i]) as f64 + 1.0;
         }
     }
 
@@ -68,16 +68,14 @@ pub fn force_atlas(
     let mut forces = vec![vec![0.0; dim]; n];
     let mut swing = vec![0.0; n];
 
-    for _ in 0..iterations {
+    for iter in 0..iterations {
         // TODO: parallelize here
         for i in 0..n {
             let mut force_i = vec![0.0; dim];
-            let deg_ip1 = deg[i] + 1.0;
             for j in 0..n {
                 if i != j {
-                    let deg_jp1 = deg[j] + 1.0;
                     let dis_ij = distance(&coords[i], &coords[j]).max(epsilon);
-                    let Fr_ij = deg_ip1 * deg_jp1 * args.repel / (dis_ij * dis_ij);
+                    let Fr_ij = deg[i] * deg[j] * args.repel / (dis_ij * dis_ij);
 
                     for k in 0..dim {
                         let direction = -(coords[j][k] - coords[i][k]) / dis_ij;
@@ -99,10 +97,10 @@ pub fn force_atlas(
                 // } else if args.delta != 0.0 {
                 //     fa_ij = (if a_ij < 0 {-1} else {1}) * a_ij.abs().pow (delta) * fa_ij;
                 // }
-                fa_ij = fa_ij * a_ij;
+                fa_ij *= a_ij;
 
                 if args.nohubs {
-                    fa_ij = fa_ij / deg_ip1;
+                    fa_ij = fa_ij / deg[i];
                 }
 
                 let Fa_ij = args.attract * fa_ij;
@@ -116,8 +114,7 @@ pub fn force_atlas(
 
             let mag = magnitude(&coords[i]);
             for k in 0..dim {
-                let uv2_ki = -coords[i][k] / mag;
-                let Fg_ki = uv2_ki * args.gravity * deg_ip1;
+                let Fg_ki = (-coords[i][k] / mag) * args.gravity * deg[i];
                 forces[i][k] = force_i[k] + Fg_ki;
             }
         }

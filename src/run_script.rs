@@ -23,12 +23,12 @@ pub fn run_script (graph_path : &Path, dim : usize) {
     let mut rng = rand::thread_rng();
     for i in 0..n {
         for k in 0..dim {
-            coords[i][k] = rng.gen_range (-10.0..10.0);
+            coords[i][k] = rng.gen_range (-1.0..1.0);
         }
     }
     
-    force_atlas (&m, dim, &mut coords, 300, ForceAtlasArgs::default());
-    normalize(dim, &mut coords);
+    force_atlas (&m, dim, &mut coords, 1000, ForceAtlasArgs::default());
+    // normalize(dim, &mut coords);
 
     let part_path = graph_path.with_extension ("part");
     {

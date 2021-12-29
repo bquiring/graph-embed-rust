@@ -171,7 +171,9 @@ if DO_VERTICES:
                                    ),
                                    #group=[i for i in range(n)],
                                    #opacity = [0.1 for i in range(n)],
-                                   hoverinfo='none'))
+                                   hovertext=[str(i) for i in range(n)],
+                                   hoverinfo='text' #'none'
+    ))
     
     
 # add edges
