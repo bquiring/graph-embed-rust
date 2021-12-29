@@ -54,15 +54,16 @@ impl MatrixMarket {
         })
     }
 
-    pub fn to_coo(&self) -> CooMatrix<f32> {
-        CooMatrix::try_from_triplets(
-            self.nrows + 1,
-            self.ncols + 1,
-            self.row_indices.clone(),
-            self.col_indices.clone(),
-            self.values.clone(),
-        )
-        .unwrap()
+    pub fn to_sym_coo(&self) -> CooMatrix<f32> {
+        assert_eq!(self.nrows, self.ncols);
+        assert_eq!(self.row_indices.len(), self.col_indices.len());
+        assert_eq!(self.row_indices.len(), self.values.len());
+        let mut coo = CooMatrix::new(self.nrows + 1, self.ncols + 1);
+        for i in 0..self.nrows {
+            coo.push(self.row_indices[i], self.col_indices[i], self.values[i]);
+            coo.push(self.col_indices[i], self.row_indices[i], self.values[i]);
+        }
+        coo
     }
 }
 
