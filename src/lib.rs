@@ -1,14 +1,10 @@
-
 #![allow(non_snake_case)]
 
-pub mod util;
 pub mod forceatlas;
+pub mod util;
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_canetscience () {
-        
-
-    }
+    fn test_canetscience() {}
 }
