@@ -1,5 +1,6 @@
 use crate::util::*;
 use nalgebra_sparse::csr::CsrMatrix;
+use rayon::prelude::*;
 
 pub struct ForceAtlasArgs {
     ks: f64,
@@ -68,8 +69,8 @@ pub fn force_atlas(
     let mut swing = vec![0.0; n];
 
     for _ in 0..iter {
-        // TODO: parallelize here
-        for i in 0..n {
+        // TODO: parallelize here... no idea if this is right
+        forces.par_iter_mut().enumerate().for_each(|(i, row)| {
             let mut force_i = vec![0.0; dim];
             for j in 0..n {
                 if i != j {
@@ -90,10 +91,10 @@ pub fn force_atlas(
                 let mut fa_ij = if args.linlog { dis_ij.log2() } else { dis_ij };
                 let a_ij = if args.use_weights { D[k2] } else { 1.0 };
 
-                // if args.delta == 1.0 {
-                //     fa_ij = fa_ij * a_ij;
+                // if args.delta == 1.0 /* fix */ {
+                //     fa_ij *= a_ij;
                 // } else if args.delta != 0.0 {
-                //     fa_ij = (if a_ij < 0 {-1} else {1}) * a_ij.abs().pow (delta) * fa_ij;
+                //     fa_ij = (if a_ij < 0 { -1 } else { 1 }) * a_ij.abs().pow(delta) * fa_ij;
                 // }
                 fa_ij *= a_ij;
 
@@ -110,16 +111,17 @@ pub fn force_atlas(
             }
 
             let mag = magnitude(&coords[i]);
-            for k in 0..dim {
+            for (k, force) in row.iter_mut().enumerate() {
                 let Fg_ki = (-coords[i][k] / mag) * args.gravity * deg[i];
-                forces[i][k] = force_i[k] + Fg_ki;
+                *force = force_i[k] + Fg_ki;
             }
-        }
+        });
 
         // TODO: parallize here
-        for i in 0..n {
-            swing[i] = distance(&forces[i], &forces_prev[i]);
-        }
+        swing
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(i, v)| *v = distance(&forces[i], &forces_prev[i]));
 
         //let mut global_swing = 0.0;
         //for i in 0..n {
@@ -133,21 +135,20 @@ pub fn force_atlas(
         //    global_traction += (deg[i]+1.0) / traction_i;
         //}
         let global_traction = 1.0;
-
         let global_speed = args.tolerate * global_traction / global_swing;
 
         // TODO: parallelize here
-        for i in 0..n {
-            let totalF_i = magnitude(&forces[i]);
-            let mut speed_i = args.ks * global_speed / (1.0 + global_speed * swing[i].sqrt());
-            let speed_constraint_i = args.ksmax / totalF_i;
-            speed_i = speed_i.min(speed_constraint_i);
+        coords.par_iter_mut().enumerate().for_each(|(i, row)| {
+            for (k, coord) in row.iter_mut().enumerate() {
+                let totalF_i = magnitude(&forces[i]);
+                let mut speed_i = args.ks * global_speed / (1.0 + global_speed * swing[i].sqrt());
+                let speed_constraint_i = args.ksmax / totalF_i;
+                speed_i = speed_i.min(speed_constraint_i);
 
-            for k in 0..dim {
                 let displacement_ik = forces[i][k] * speed_i;
-                coords[i][k] += displacement_ik;
+                *coord += displacement_ik;
             }
-        }
+        })
     }
 
     for i in 0..n {
