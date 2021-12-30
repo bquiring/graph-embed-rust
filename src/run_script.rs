@@ -1,4 +1,4 @@
-use crate::{force_atlas::*, io::*};
+use graph_embed_rust::{force_atlas::*, io::*};
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::Rng;
 use std::{fs::File, io::Write, path::Path, process::Command};
