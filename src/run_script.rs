@@ -1,4 +1,5 @@
 use graph_embed_rust::{force_atlas::*, io::*};
+use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::Rng;
 use std::{fs::File, io::Write, path::Path, process::Command};
@@ -11,17 +12,16 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     assert_eq!(m.nrows(), m.ncols());
     let n = m.nrows();
 
-    let mut coords = vec![vec![0.0; dim]; m.nrows()];
-
+    let mut coords = DMatrix::zeros(n, dim);
     let mut rng = rand::thread_rng();
     for i in 0..n {
         for k in 0..dim {
-            coords[i][k] = rng.gen_range(-1.0..1.0);
+            coords[(i, k)] = rng.gen_range(-1.0..1.0);
         }
     }
 
     force_atlas(&m, dim, 1000, &mut coords, &ForceAtlasArgs::default());
-    // normalize(dim, &mut coords);
+    //coords = coords.normalize();
 
     let part_path = graph_path.with_extension("part");
     {
@@ -39,7 +39,7 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         let mut coords_file = File::create(coords_path.clone()).unwrap();
         for i in 0..n {
             for k in 0..dim {
-                write!(coords_file, "{} ", coords[i][k]).unwrap();
+                write!(coords_file, "{} ", coords[(i, k)]).unwrap();
             }
             writeln!(coords_file).unwrap();
         }

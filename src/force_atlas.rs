@@ -1,4 +1,5 @@
 use crate::util::*;
+use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rayon::prelude::*;
 
@@ -36,17 +37,18 @@ pub fn force_atlas(
     matrix: &CsrMatrix<f64>,
     dim: usize,
     iter: usize,
-    coords: &mut Vec<Vec<f64>>,
+    coords: &mut DMatrix<f64>,
     args: &ForceAtlasArgs,
 ) {
     let epsilon = 0.00001;
-    let n = coords.len();
+    let n = coords.nrows();
 
     assert_eq!(matrix.nrows(), matrix.ncols());
     assert_eq!(matrix.nrows(), n);
-    for i in 0..n {
-        assert_eq!(coords[i].len(), dim);
-    }
+    //    for i in 0..n {
+    //        assert_eq!(coords[i].len(), dim);
+    //    }
+    assert_eq!(coords.ncols(), dim);
 
     let I = matrix.row_offsets();
     let J = matrix.col_indices();
@@ -74,11 +76,11 @@ pub fn force_atlas(
             let mut force_i = vec![0.0; dim];
             for j in 0..n {
                 if i != j {
-                    let dis_ij = distance(&coords[i], &coords[j]).max(epsilon);
+                    let dis_ij = coords.row(i).metric_distance(&coords.row(j)).max(epsilon);
                     let Fr_ij = deg[i] * deg[j] * args.repel / (dis_ij * dis_ij);
 
                     for k in 0..dim {
-                        let direction = -(coords[j][k] - coords[i][k]) / dis_ij;
+                        let direction = -(coords[(j, k)] - coords[(i, k)]) / dis_ij;
                         let Fr_sum = direction * Fr_ij;
                         force_i[k] += Fr_sum;
                     }
@@ -87,7 +89,7 @@ pub fn force_atlas(
 
             for k2 in I[i]..I[i + 1] {
                 let j = J[k2];
-                let dis_ij = distance(&coords[i], &coords[j]).max(epsilon);
+                let dis_ij = coords.row(i).metric_distance(&coords.row(j)).max(epsilon);
                 let mut fa_ij = if args.linlog { dis_ij.log2() } else { dis_ij };
                 let a_ij = if args.use_weights { D[k2] } else { 1.0 };
 
@@ -104,15 +106,15 @@ pub fn force_atlas(
 
                 let Fa_ij = args.attract * fa_ij;
                 for k in 0..dim {
-                    let direction = (coords[j][k] - coords[i][k]) / dis_ij;
+                    let direction = (coords[(j, k)] - coords[(i, k)]) / dis_ij;
                     let Fa_sum = direction * Fa_ij;
                     force_i[k] += Fa_sum;
                 }
             }
 
-            let mag = magnitude(&coords[i]);
+            let mag = coords.row(i).magnitude();
             for (k, force) in row.iter_mut().enumerate() {
-                let Fg_ki = (-coords[i][k] / mag) * args.gravity * deg[i];
+                let Fg_ki = (-coords[(i, k)] / mag) * args.gravity * deg[i];
                 *force = force_i[k] + Fg_ki;
             }
         });
@@ -138,7 +140,7 @@ pub fn force_atlas(
         let global_speed = args.tolerate * global_traction / global_swing;
 
         // TODO: parallelize here
-        coords.par_iter_mut().enumerate().for_each(|(i, row)| {
+        coords.row_iter_mut().enumerate().for_each(|(i, mut row)| {
             for (k, coord) in row.iter_mut().enumerate() {
                 let totalF_i = magnitude(&forces[i]);
                 let mut speed_i = args.ks * global_speed / (1.0 + global_speed * swing[i].sqrt());
