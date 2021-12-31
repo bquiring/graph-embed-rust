@@ -2,7 +2,7 @@ use graph_embed_rust::{force_atlas::*, io::*};
 use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::Rng;
-use std::{fs::File, io::Write, path::Path, process::Command};
+use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
 pub fn run_script(graph_path: &Path, dim: usize) {
     let mm = MatrixMarket::read(graph_path).unwrap();
@@ -20,8 +20,11 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         }
     }
 
+    let start = Instant::now();
     force_atlas(&m, dim, 1000, &mut coords, &ForceAtlasArgs::default());
     //coords = coords.normalize();
+    let duration = start.elapsed();
+    println!("force atlas time elapsed: {:?}", duration);
 
     let part_path = graph_path.with_extension("part");
     {
