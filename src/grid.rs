@@ -55,13 +55,13 @@ impl Index<(usize, usize)> for Grid {
     type Output = f64;
 
     fn index(&self, index: (usize, usize)) -> &Self::Output {
-        &self.inner[index.0 * self.ncols + index.1]
+        &self.inner[index.1 * self.ncols + index.0]
     }
 }
 
 impl IndexMut<(usize, usize)> for Grid {
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
-        &mut self.inner[index.0 * self.ncols + index.1]
+        &mut self.inner[index.1 * self.ncols + index.0]
     }
 }
 
