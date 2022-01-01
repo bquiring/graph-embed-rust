@@ -1,19 +1,20 @@
+//use crate::grid::Grid;
 use crate::util::*;
 use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rayon::prelude::*;
 
 pub struct ForceAtlasArgs {
-    ks: f64,
-    ksmax: f64,
-    repel: f64,
-    attract: f64,
-    gravity: f64,
-    //delta: f64,
-    tolerate: f64,
-    use_weights: bool,
-    linlog: bool,
-    nohubs: bool,
+    pub ks: f64,
+    pub ksmax: f64,
+    pub repel: f64,
+    pub attract: f64,
+    pub gravity: f64,
+    //pub delta: f64,
+    pub tolerate: f64,
+    pub use_weights: bool,
+    pub linlog: bool,
+    pub no_hubs: bool,
 }
 
 impl Default for ForceAtlasArgs {
@@ -28,7 +29,7 @@ impl Default for ForceAtlasArgs {
             tolerate: 1.0,
             use_weights: true,
             linlog: false,
-            nohubs: false,
+            no_hubs: false,
         }
     }
 }
@@ -66,6 +67,8 @@ pub fn force_atlas(
         }
     }
 
+    //let mut forces_prev = Grid::new(n, dim);
+    //let mut forces = Grid::new(n, dim);
     let mut forces_prev = vec![vec![0.0; dim]; n];
     let mut forces = vec![vec![0.0; dim]; n];
     let mut swing = vec![0.0; n];
@@ -100,7 +103,7 @@ pub fn force_atlas(
                 // }
                 fa_ij *= a_ij;
 
-                if args.nohubs {
+                if args.no_hubs {
                     fa_ij /= deg[i];
                 }
 
@@ -114,7 +117,7 @@ pub fn force_atlas(
 
             let mag = coords.row(i).magnitude();
             for (k, force) in row.iter_mut().enumerate() {
-                let Fg_ki = (-coords[(i, k)] / mag) * args.gravity * deg[i];
+                let Fg_ki = -coords[(i, k)] / mag * args.gravity * deg[i];
                 *force = force_i[k] + Fg_ki;
             }
         });
@@ -150,13 +153,13 @@ pub fn force_atlas(
                 let displacement_ik = forces[i][k] * speed_i;
                 *coord += displacement_ik;
             }
-        })
-    }
+        });
 
-    for i in 0..n {
-        for k in 0..dim {
-            forces_prev[i][k] = forces[i][k];
-            forces[i][k] = 0.0;
+        for i in 0..n {
+            for k in 0..dim {
+                forces_prev[i][k] = forces[i][k];
+                forces[i][k] = 0.0;
+            }
         }
     }
 }
