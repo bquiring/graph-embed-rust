@@ -1,3 +1,4 @@
+#[inline]
 pub fn distance(v1: &[f64], v2: &[f64]) -> f64 {
     assert_eq!(v1.len(), v2.len());
     let mut sum = 0.0;
@@ -8,6 +9,7 @@ pub fn distance(v1: &[f64], v2: &[f64]) -> f64 {
     sum.sqrt()
 }
 
+#[inline]
 pub fn magnitude(v: &[f64]) -> f64 {
     let mut sum = 0.0;
     for x in v {

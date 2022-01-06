@@ -1,30 +1,37 @@
-use graph_embed_rust::{force_atlas::*, io::*};
+use graph_embed_rust::{community::*, force_atlas::*, io::*};
 use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
-use rand::Rng;
+use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
 pub fn run_script(graph_path: &Path, dim: usize) {
-    let mm = MatrixMarket::read(graph_path).unwrap();
+    let mm = MatrixMarket::read_from_path(graph_path).unwrap();
     let coo = mm.to_sym_coo();
     let m = CsrMatrix::from(&coo);
 
     assert_eq!(m.nrows(), m.ncols());
     let n = m.nrows();
 
-    let mut coords = DMatrix::zeros(n, dim);
     let mut rng = rand::thread_rng();
-    for i in 0..n {
-        for k in 0..dim {
-            coords[(i, k)] = rng.gen_range(-1.0..1.0);
-        }
-    }
+    let dist = Uniform::from(-1.0..1.0);
+    let mut rand_elems = Vec::with_capacity(n * dim);
+    rand_elems.extend((0..n * dim).map(|_| rng.sample(&dist)));
+    let mut coords = DMatrix::from_vec(n, dim, rand_elems);
 
     let start = Instant::now();
     force_atlas(&m, dim, 1000, &mut coords, &ForceAtlasArgs::default());
     //coords = coords.normalize();
     let duration = start.elapsed();
     println!("force atlas time elapsed: {:?}", duration);
+
+    let levels = louvain(&m, 0.000001);
+    for (i, level) in levels.iter().enumerate() {
+        println!("level {}:", i);
+        for (node, comm) in level.sorted() {
+            println!("{} {}", node, comm);
+        }
+        println!();
+    }
 
     let part_path = graph_path.with_extension("part");
     {

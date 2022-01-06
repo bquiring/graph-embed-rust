@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+pub mod community;
 pub mod force_atlas;
 pub mod grid;
 pub mod io;

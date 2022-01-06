@@ -6,11 +6,11 @@ use std::{
 };
 
 pub struct MatrixMarket {
+    nrows: usize,
+    ncols: usize,
     row_indices: Vec<usize>,
     col_indices: Vec<usize>,
     values: Vec<f64>,
-    nrows: usize,
-    ncols: usize,
 }
 
 #[derive(Debug)]
@@ -39,56 +39,13 @@ impl From<ParseError> for MmError {
 }
 
 impl MatrixMarket {
-    // TODO: error on bad input...
-    pub fn read(path: &Path) -> Result<Self, MmError> {
+    pub fn read_from_path(path: &Path) -> Result<Self, MmError> {
         let f = File::open(path)?;
-        let reader = BufReader::new(f);
+        parse(&mut BufReader::new(f))
+    }
 
-        let mut row_indices = Vec::new();
-        let mut col_indices = Vec::new();
-        let mut values = Vec::new();
-        let mut nrows = 0;
-        let mut ncols = 0;
-        for line in reader.lines() {
-            let line = line?;
-
-            // skip header for now
-            if line.starts_with('%') {
-                continue;
-            }
-
-            // read data
-            // TODO: sanitize
-            let mut split = line.split_whitespace();
-            let row: usize = split
-                .next()
-                .ok_or(ParseError::ExpectedRow)?
-                .parse()
-                .unwrap();
-            let col: usize = split
-                .next()
-                .ok_or(ParseError::ExpectedCol)?
-                .parse()
-                .unwrap();
-            let value: f64 = split
-                .next()
-                .ok_or(ParseError::ExpectedValue)?
-                .parse()
-                .unwrap();
-            row_indices.push(row);
-            col_indices.push(col);
-            values.push(value);
-
-            nrows = nrows.max(row);
-            ncols = ncols.max(col);
-        }
-        Ok(Self {
-            row_indices,
-            col_indices,
-            values,
-            nrows,
-            ncols,
-        })
+    pub fn read_from_string(s: &str) -> Result<Self, MmError> {
+        parse(&mut s.as_bytes())
     }
 
     pub fn to_sym_coo(&self) -> CooMatrix<f64> {
@@ -102,4 +59,51 @@ impl MatrixMarket {
         }
         coo
     }
+}
+
+fn parse<R: BufRead>(reader: &mut R) -> Result<MatrixMarket, MmError> {
+    let mut nrows = 0;
+    let mut ncols = 0;
+    let mut row_indices = Vec::new();
+    let mut col_indices = Vec::new();
+    let mut values = Vec::new();
+    for line in reader.lines() {
+        let line = line?;
+
+        // skip header for now
+        if line.starts_with('%') {
+            continue;
+        }
+
+        // read data
+        let mut split = line.split_whitespace();
+        let row: usize = split
+            .next()
+            .ok_or(ParseError::ExpectedRow)?
+            .parse()
+            .unwrap();
+        let col: usize = split
+            .next()
+            .ok_or(ParseError::ExpectedCol)?
+            .parse()
+            .unwrap();
+        let value: f64 = split
+            .next()
+            .ok_or(ParseError::ExpectedValue)?
+            .parse()
+            .unwrap();
+
+        row_indices.push(row);
+        col_indices.push(col);
+        values.push(value);
+        nrows = nrows.max(row);
+        ncols = ncols.max(col);
+    }
+    Ok(MatrixMarket {
+        nrows,
+        ncols,
+        row_indices,
+        col_indices,
+        values,
+    })
 }

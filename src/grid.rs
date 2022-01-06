@@ -1,18 +1,20 @@
-use rayon::iter::*;
-use rayon::slice::{Chunks, ChunksMut, ParallelSlice, ParallelSliceMut};
+use rayon::{
+    iter::IntoParallelIterator,
+    slice::{ChunksMut, ParallelSliceMut},
+};
 use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Clone)]
-pub struct Grid {
+pub struct Grid<T> {
     nrows: usize,
     ncols: usize,
-    inner: Vec<f64>,
+    inner: Vec<T>,
 }
 
-impl Grid {
+impl<T: Copy + Default> Grid<T> {
     pub fn new(nrows: usize, ncols: usize) -> Self {
         Self {
-            inner: vec![0.0; nrows * ncols],
+            inner: vec![T::default(); nrows * ncols],
             nrows,
             ncols,
         }
@@ -26,17 +28,17 @@ impl Grid {
         self.ncols
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &f64> {
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.inner.iter()
     }
 
-    pub fn row_iter(&self, index: usize) -> impl Iterator<Item = &f64> {
+    pub fn row_iter(&self, index: usize) -> impl Iterator<Item = &T> {
         self[index].iter()
     }
 }
 
-impl Index<usize> for Grid {
-    type Output = [f64];
+impl<T> Index<usize> for Grid<T> {
+    type Output = [T];
 
     fn index(&self, index: usize) -> &Self::Output {
         let start = index * self.ncols;
@@ -44,30 +46,30 @@ impl Index<usize> for Grid {
     }
 }
 
-impl IndexMut<usize> for Grid {
+impl<T> IndexMut<usize> for Grid<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let start = index * self.ncols;
         &mut self.inner[start..start + self.ncols]
     }
 }
 
-impl Index<(usize, usize)> for Grid {
-    type Output = f64;
+impl<T> Index<(usize, usize)> for Grid<T> {
+    type Output = T;
 
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         &self.inner[index.1 * self.ncols + index.0]
     }
 }
 
-impl IndexMut<(usize, usize)> for Grid {
+impl<T> IndexMut<(usize, usize)> for Grid<T> {
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
         &mut self.inner[index.1 * self.ncols + index.0]
     }
 }
 
-impl<'a> IntoParallelIterator for &'a mut Grid {
-    type Item = &'a mut [f64];
-    type Iter = ChunksMut<'a, f64>;
+impl<'a, T: Send> IntoParallelIterator for &'a mut Grid<T> {
+    type Item = &'a mut [T];
+    type Iter = ChunksMut<'a, T>;
 
     fn into_par_iter(self) -> Self::Iter {
         self.inner.par_chunks_mut(self.ncols)
