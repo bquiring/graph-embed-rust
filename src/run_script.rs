@@ -33,13 +33,27 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         println!();
     }
 
+    // #partition levels
+    // FIXME
+    let K = 1;
     let part_path = graph_path.with_extension("part");
     {
         let mut part_file = File::create(part_path.clone()).unwrap();
-        writeln!(part_file, "{} 1", n).unwrap();
-        writeln!(part_file, "{}", n).unwrap();
-        for i in 0..n {
-            writeln!(part_file, "{} {}", i, 0).unwrap();
+        // print #vertices then #partition levels
+        writeln!(part_file, "{} {}", n, K).unwrap();
+        // print the size of each partition
+        // FIXME
+        // TODO: SHOULD BE ALL ON ONE LINE
+        for p in 0..K {
+            writeln!(part_file, "{}", n).unwrap();
+        }
+        // print the partitions
+        for p in 0..K {
+            // vertex index in level p followed by associated vertex index in level p+1
+            // FIXME
+            for i in 0..n {
+                writeln!(part_file, "{} {}", i, 0).unwrap();
+            }
         }
         writeln!(part_file).unwrap();
     }
