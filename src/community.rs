@@ -99,11 +99,9 @@ impl Community {
     fn modularity(&self) -> f64 {
         let mut q = 0.0;
         let t = self.graph.weight_sum();
-        for node in 0..self.size {
-            if self.wdeg[node] > 0.0 {
-                let x = self.wdeg[node] / t;
-                q += self.inside[node] / t - x * x;
-            }
+        for (node, wdeg) in self.wdeg.iter().enumerate().filter(|(_, &w)| w > 0.0) {
+            let x = wdeg / t;
+            q += self.inside[node] / t - x * x;
         }
         q
     }
@@ -115,8 +113,8 @@ impl Community {
     }
 
     fn neigh_comm(&mut self, node: usize) {
-        for i in 0..self.neigh_last {
-            self.neigh_weight[self.neigh_pos[i]] = -1.0;
+        for &pos in &self.neigh_pos[..self.neigh_last] {
+            self.neigh_weight[pos] = -1.0;
         }
 
         self.neigh_pos[0] = self.node_to_comm[&node];
@@ -139,13 +137,12 @@ impl Community {
     }
 
     fn next_level(&mut self) -> bool {
-        let mut improved = false;
-        let mut new_mod = self.modularity();
-
         let mut rng = rand::thread_rng();
         let mut rand_order: Vec<_> = (0..self.size).collect();
         rand_order.shuffle(&mut rng);
 
+        let mut improved = false;
+        let mut new_mod = self.modularity();
         loop {
             let cur_mod = new_mod;
             let mut num_moves = 0;
@@ -160,8 +157,7 @@ impl Community {
                 let mut best_comm = comm;
                 let mut best_links = 0.0;
                 let mut best_incr = 0.0;
-                for i in 0..self.neigh_last {
-                    let pos = self.neigh_pos[i];
+                for &pos in &self.neigh_pos[..self.neigh_last] {
                     let weight = self.neigh_weight[pos];
                     let incr = self.modularity_gain(node, pos, weight, wdeg);
                     if incr > best_incr {
@@ -192,7 +188,7 @@ impl Community {
 
     // has to be a better way ... this is pretty sloppy
     fn partition_to_graph(&mut self) -> Graph {
-        let mut renumber: HashMap<usize, usize> = HashMap::with_capacity(self.size);
+        let mut renumber = HashMap::with_capacity(self.size);
         for node in 0..self.size {
             renumber
                 .entry(self.node_to_comm[&node])
@@ -201,13 +197,10 @@ impl Community {
         }
 
         let mut fin = 0;
-        for i in 0..self.size {
-            match renumber.entry(i) {
-                Entry::Occupied(mut e) => {
-                    e.insert(fin);
-                    fin += 1;
-                }
-                Entry::Vacant(_) => {}
+        for comm in 0..self.size {
+            if let Entry::Occupied(mut e) = renumber.entry(comm) {
+                e.insert(fin);
+                fin += 1;
             }
         }
 
@@ -216,8 +209,8 @@ impl Community {
             comm_nodes[renumber[&self.node_to_comm[&node]]].push(node);
         }
 
-        let mut links = Vec::new();
-        let mut degs = vec![0; comm_nodes.len()];
+        let mut degs = Vec::with_capacity(comm_nodes.len());
+        let mut links = Vec::with_capacity(comm_nodes.len());
         for nodes in comm_nodes.iter() {
             let mut comm_links = HashMap::new();
             for &node in nodes.iter() {
