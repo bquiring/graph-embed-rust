@@ -11,11 +11,34 @@ use std::{
 #[derive(Clone, Debug)]
 pub struct Level {
     node_to_comm: HashMap<usize, usize>,
+    comm_sizes: HashMap<usize, usize>,
 }
 
 impl Level {
+    fn new(node_to_comm: HashMap<usize, usize>) -> Self {
+        let mut comm_sizes = HashMap::new();
+        if let Some(&max) = node_to_comm.values().max() {
+            for comm in 0..max {
+                let count: usize = node_to_comm.values().filter(|&v| *v == comm).count();
+                comm_sizes.insert(comm, count);
+            }
+        }
+        Self {
+            node_to_comm,
+            comm_sizes,
+        }
+    }
+
     pub fn comm(&self, node: usize) -> Option<usize> {
         self.node_to_comm.get(&node).copied()
+    }
+
+    pub fn comm_size(&self, comm: usize) -> Option<usize> {
+        self.comm_sizes.get(&comm).copied()
+    }
+
+    pub fn num_comm(&self) -> usize {
+        self.comm_sizes.len()
     }
 
     pub fn sorted(&self) -> Vec<(usize, usize)> {
@@ -33,9 +56,7 @@ pub fn louvain(m: &CsrMatrix<f64>, min_mod: f64) -> Vec<Level> {
     loop {
         improved = c.next_level();
         let graph = c.partition_to_graph();
-        levels.push(Level {
-            node_to_comm: c.node_to_comm,
-        });
+        levels.push(Level::new(c.node_to_comm));
         c = Community::new(graph, min_mod);
 
         if !improved {
@@ -224,6 +245,7 @@ impl Community {
             degs.push(comm_links.len() + degs.last().unwrap_or(&0));
             links.push(comm_links);
         }
+
         let mut coo = CooMatrix::new(links.len(), links.len());
         for (node, neighbors) in links.iter().enumerate() {
             coo.push(node, node, degs[node] as f64);

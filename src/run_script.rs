@@ -33,34 +33,30 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         println!();
     }
 
-    // #partition levels
-    // FIXME
-    let K = 1;
     let part_path = graph_path.with_extension("part");
     {
-        let mut part_file = File::create(part_path.clone()).unwrap();
+        let k = 1; // #partition level
+        let level = &levels[k];
+        let mut part_file = File::create(&part_path).unwrap();
         // print #vertices then #partition levels
-        writeln!(part_file, "{} {}", n, K).unwrap();
+        writeln!(part_file, "{} {}", n, k).unwrap();
         // print the size of each partition
-        // FIXME
-        // TODO: SHOULD BE ALL ON ONE LINE
-        for p in 0..K {
-            writeln!(part_file, "{}", n).unwrap();
-        }
-        // print the partitions
-        for p in 0..K {
-            // vertex index in level p followed by associated vertex index in level p+1
-            // FIXME
-            for i in 0..n {
-                writeln!(part_file, "{} {}", i, 0).unwrap();
+        for comm in 0..level.num_comm() {
+            if let Some(size) = level.comm_size(comm) {
+                write!(part_file, "{} ", size).unwrap();
             }
+        }
+        writeln!(part_file).unwrap();
+        // print the partitions
+        for (node, comm) in level.sorted() {
+            writeln!(part_file, "{} {}", node, comm).unwrap();
         }
         writeln!(part_file).unwrap();
     }
 
     let coords_path = graph_path.with_extension("coords");
     {
-        let mut coords_file = File::create(coords_path.clone()).unwrap();
+        let mut coords_file = File::create(&coords_path).unwrap();
         for i in 0..n {
             for k in 0..dim {
                 write!(coords_file, "{} ", coords[(i, k)]).unwrap();
