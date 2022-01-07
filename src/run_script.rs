@@ -49,10 +49,11 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         }
         // print the partitions
         for p in 0..K {
-            // vertex index in level p followed by associated vertex index in level p+1
-            // FIXME
+            // FIXME: should be the size of level K
+            let n = n;
             for i in 0..n {
-                writeln!(part_file, "{} {}", i, 0).unwrap();
+                // write associated vertex index in level p+1
+                writeln!(part_file, "{}", 0).unwrap();
             }
         }
         writeln!(part_file).unwrap();
@@ -70,6 +71,13 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     }
 
     let plot_path = graph_path.with_extension("plot");
+
+    println!("python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {}",
+             graph_path.to_str().unwrap(),
+             part_path.to_str().unwrap(),
+             coords_path.to_str().unwrap(),
+             plot_path.to_str().unwrap()
+    );
 
     let output = Command::new("python3")
         .args([
