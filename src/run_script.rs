@@ -24,35 +24,28 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     let duration = start.elapsed();
     println!("force atlas time elapsed: {:?}", duration);
 
+    let start = Instant::now();
     let levels = louvain(&m, 0.000001);
-    for (i, level) in levels.iter().enumerate() {
-        println!("level {}:", i);
-        for (node, comm) in level.sorted() {
-            println!("{} {}", node, comm);
-        }
-        println!();
-    }
+    let duration = start.elapsed();
+    println!("community time elapsed: {:?}", duration);
 
     let part_path = graph_path.with_extension("part");
     {
+        let start = Instant::now();
         let k = 1; // #partition level
-        let level = &levels[k];
         let mut part_file = File::create(&part_path).unwrap();
         // print #vertices then #partition levels
         writeln!(part_file, "{} {}", n, k).unwrap();
         // print the partitions
-        for (i, level) in levels.iter().enumerate() {
-            if i < k {
-                // print the size of each partition
-                writeln!(part_file, "{}", level.num_comm()).unwrap();
-                for comm in 0..level.num_comm() {
-                    for (node, comm2) in level.sorted() {
-                        if comm2 == comm {
-                            write!(part_file, "{} ", node).unwrap();
-                        }
-                    }
-                    writeln!(part_file).unwrap();
+        for level in levels.iter().take(k) {
+            // print the size of each partition
+            writeln!(part_file, "{}", level.num_comm()).unwrap();
+            let sorted = level.sorted();
+            for comm in 0..level.num_comm() {
+                for node in sorted.iter().filter(|(_, c)| *c == comm).map(|(n, _)| *n) {
+                    write!(part_file, "{} ", node).unwrap();
                 }
+                writeln!(part_file).unwrap();
             }
         }
 
@@ -63,6 +56,8 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         //     writeln!(part_file).unwrap();
         // }
         // writeln!(part_file).unwrap();
+        let duration = start.elapsed();
+        println!("partition time elapsed: {:?}", duration);
     }
 
     let coords_path = graph_path.with_extension("coords");
@@ -78,11 +73,12 @@ pub fn run_script(graph_path: &Path, dim: usize) {
 
     let plot_path = graph_path.with_extension("plot");
 
-    println!("python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {}",
-             graph_path.to_str().unwrap(),
-             part_path.to_str().unwrap(),
-             coords_path.to_str().unwrap(),
-             plot_path.to_str().unwrap()
+    println!(
+        "python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {}",
+        graph_path.to_str().unwrap(),
+        part_path.to_str().unwrap(),
+        coords_path.to_str().unwrap(),
+        plot_path.to_str().unwrap()
     );
 
     let output = Command::new("python3")

@@ -9,3 +9,6 @@ nalgebra-sparse = "0.5"
 rand = "0.8.4"
 rayon = "1.5.1"
 #ndarray = { version = "0.15.4", features = ["rayon"] }
+
+[profile.release]
+debug = 1
