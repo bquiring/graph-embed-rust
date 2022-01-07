@@ -41,15 +41,13 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         // print #vertices then #partition levels
         writeln!(part_file, "{} {}", n, k).unwrap();
         // print the size of each partition
-        for comm in 0..level.num_comm() {
-            if let Some(size) = level.comm_size(comm) {
-                write!(part_file, "{} ", size).unwrap();
-            }
-        }
-        writeln!(part_file).unwrap();
+        writeln!(part_file, "{}", level.num_comm()).unwrap();
         // print the partitions
-        for (node, comm) in level.sorted() {
-            writeln!(part_file, "{} {}", node, comm).unwrap();
+        for comm in 0..level.num_comm() {
+            for node in level.nodes(comm) {
+                write!(part_file, "{} ", node).unwrap();
+            }
+            writeln!(part_file).unwrap();
         }
         writeln!(part_file).unwrap();
     }

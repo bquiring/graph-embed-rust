@@ -19,8 +19,8 @@ impl Level {
         let mut comm_sizes = HashMap::new();
         if let Some(&max) = node_to_comm.values().max() {
             for comm in 0..max {
-                let count: usize = node_to_comm.values().filter(|&v| *v == comm).count();
-                comm_sizes.insert(comm, count);
+                let size = node_to_comm.values().filter(|&v| *v == comm).count();
+                comm_sizes.insert(comm, size);
             }
         }
         Self {
@@ -29,7 +29,7 @@ impl Level {
         }
     }
 
-    pub fn comm(&self, node: usize) -> Option<usize> {
+    pub fn comm_of(&self, node: usize) -> Option<usize> {
         self.node_to_comm.get(&node).copied()
     }
 
@@ -39,6 +39,22 @@ impl Level {
 
     pub fn num_comm(&self) -> usize {
         self.comm_sizes.len()
+    }
+
+    pub fn nodes(&self, comm: usize) -> Vec<usize> {
+        match self.comm_sizes.get(&comm) {
+            None | Some(&0) => Vec::new(),
+            Some(&size) => {
+                let mut nodes = Vec::with_capacity(size);
+                for (&node, &c) in &self.node_to_comm {
+                    if c == comm {
+                        nodes.push(node);
+                    }
+                }
+                nodes.sort_unstable();
+                nodes
+            }
+        }
     }
 
     pub fn sorted(&self) -> Vec<(usize, usize)> {
@@ -244,6 +260,11 @@ impl Community {
             }
             degs.push(comm_links.len() + degs.last().unwrap_or(&0));
             links.push(comm_links);
+        }
+
+        for node in 0..comm_nodes.len() {
+            self.node_to_comm
+                .insert(node, renumber[&self.node_to_comm[&node]]);
         }
 
         let mut coo = CooMatrix::new(links.len(), links.len());
