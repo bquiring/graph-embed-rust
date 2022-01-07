@@ -262,7 +262,7 @@ impl Community {
             links.push(comm_links);
         }
 
-        for node in 0..comm_nodes.len() {
+        for node in 0..self.size {
             self.node_to_comm
                 .insert(node, renumber[&self.node_to_comm[&node]]);
         }

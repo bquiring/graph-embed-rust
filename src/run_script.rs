@@ -40,16 +40,29 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         let mut part_file = File::create(&part_path).unwrap();
         // print #vertices then #partition levels
         writeln!(part_file, "{} {}", n, k).unwrap();
-        // print the size of each partition
-        writeln!(part_file, "{}", level.num_comm()).unwrap();
         // print the partitions
-        for comm in 0..level.num_comm() {
-            for node in level.nodes(comm) {
-                write!(part_file, "{} ", node).unwrap();
+        for (i, level) in levels.iter().enumerate() {
+            if i < k {
+                // print the size of each partition
+                writeln!(part_file, "{}", level.num_comm()).unwrap();
+                for comm in 0..level.num_comm() {
+                    for (node, comm2) in level.sorted() {
+                        if comm2 == comm {
+                            write!(part_file, "{} ", node).unwrap();
+                        }
+                    }
+                    writeln!(part_file).unwrap();
+                }
             }
-            writeln!(part_file).unwrap();
         }
-        writeln!(part_file).unwrap();
+
+        // for comm in 0..level.num_comm() {
+        //     for node in level.nodes(comm) {
+        //         write!(part_file, "{} ", node).unwrap();
+        //     }
+        //     writeln!(part_file).unwrap();
+        // }
+        // writeln!(part_file).unwrap();
     }
 
     let coords_path = graph_path.with_extension("coords");
