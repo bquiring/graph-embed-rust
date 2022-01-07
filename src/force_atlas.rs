@@ -1,4 +1,4 @@
-//use crate::grid::Grid;
+use crate::grid::Grid;
 use crate::util::*;
 use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
@@ -67,10 +67,8 @@ pub fn force_atlas(
         }
     }
 
-    //let mut forces_prev = Grid::new(n, dim);
-    //let mut forces = Grid::new(n, dim);
-    let mut forces_prev = vec![vec![0.0; dim]; n];
-    let mut forces = vec![vec![0.0; dim]; n];
+    let mut forces_prev = Grid::new(n, dim);
+    let mut forces = Grid::new(n, dim);
     let mut swing = vec![0.0; n];
 
     for _ in 0..iter {
