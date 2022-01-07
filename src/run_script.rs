@@ -65,6 +65,13 @@ pub fn run_script(graph_path: &Path, dim: usize) {
 
     let plot_path = graph_path.with_extension("plot");
 
+    println!("python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {}",
+             graph_path.to_str().unwrap(),
+             part_path.to_str().unwrap(),
+             coords_path.to_str().unwrap(),
+             plot_path.to_str().unwrap()
+    );
+
     let output = Command::new("python3")
         .args([
             "scripts/plot-graph.py",
