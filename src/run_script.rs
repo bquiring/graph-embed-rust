@@ -19,7 +19,7 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     let mut coords = DMatrix::from_vec(n, dim, rand_elems);
 
     let start = Instant::now();
-    force_atlas(&m, dim, 1000, &mut coords, &ForceAtlasArgs::default());
+    force_atlas(&m, dim, 1, &mut coords, &ForceAtlasArgs::default());
     //coords = coords.normalize();
     let duration = start.elapsed();
     println!("force atlas time elapsed: {:?}", duration);
@@ -40,9 +40,8 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         for level in levels.iter().take(k) {
             // print the size of each partition
             writeln!(part_file, "{}", level.num_comm()).unwrap();
-            let sorted = level.sorted();
             for comm in 0..level.num_comm() {
-                for node in sorted.iter().filter(|(_, c)| *c == comm).map(|(n, _)| *n) {
+                for node in level.iter().filter(|(_, c)| *c == comm).map(|(n, _)| n) {
                     write!(part_file, "{} ", node).unwrap();
                 }
                 writeln!(part_file).unwrap();

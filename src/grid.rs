@@ -32,8 +32,8 @@ impl<T: Copy + Default> Grid<T> {
         self.inner.iter()
     }
 
-    pub fn row_iter(&self, index: usize) -> impl Iterator<Item = &T> {
-        self[index].iter()
+    pub fn row_iter(&self) -> impl Iterator<Item = &[T]> {
+        self.inner.chunks(self.ncols)
     }
 }
 

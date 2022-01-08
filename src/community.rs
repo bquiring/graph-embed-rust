@@ -1,28 +1,29 @@
 use nalgebra_sparse::{coo::CooMatrix, csr::CsrMatrix};
 use rand::seq::SliceRandom;
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    ops::Range,
-};
+use std::{collections::HashMap, ops::Range};
 
 // Uses the Louvain method, https://arxiv.org/abs/0803.0476
 // Based on code from https://sites.google.com/site/findcommunities/
 
 #[derive(Clone, Debug)]
 pub struct Level {
-    node_to_comm: HashMap<usize, usize>,
-    comm_sizes: HashMap<usize, usize>,
+    node_to_comm: Vec<usize>,
+    comm_sizes: Vec<usize>,
 }
 
 impl Level {
-    fn new(node_to_comm: HashMap<usize, usize>) -> Self {
-        let mut comm_sizes = HashMap::new();
-        if let Some(&max) = node_to_comm.values().max() {
+    fn new(node_to_comm: Vec<Option<usize>>) -> Self {
+        let node_to_comm: Vec<_> = node_to_comm.iter().flatten().copied().collect();
+        let comm_sizes = if let Some(&max) = node_to_comm.iter().max() {
+            let mut comm_sizes = vec![0; max];
             for comm in 0..max {
-                let size = node_to_comm.values().filter(|&v| *v == comm).count();
-                comm_sizes.insert(comm, size);
+                let size = node_to_comm.iter().filter(|&c| *c == comm).count();
+                comm_sizes[comm] += size;
             }
-        }
+            comm_sizes
+        } else {
+            Vec::new()
+        };
         Self {
             node_to_comm,
             comm_sizes,
@@ -30,37 +31,19 @@ impl Level {
     }
 
     pub fn comm_of(&self, node: usize) -> Option<usize> {
-        self.node_to_comm.get(&node).copied()
+        self.node_to_comm.get(node).copied()
     }
 
     pub fn comm_size(&self, comm: usize) -> Option<usize> {
-        self.comm_sizes.get(&comm).copied()
+        self.comm_sizes.get(comm).copied()
     }
 
     pub fn num_comm(&self) -> usize {
         self.comm_sizes.len()
     }
 
-    pub fn nodes(&self, comm: usize) -> Vec<usize> {
-        match self.comm_sizes.get(&comm) {
-            None | Some(&0) => Vec::new(),
-            Some(&size) => {
-                let mut nodes = Vec::with_capacity(size);
-                for (&node, &c) in &self.node_to_comm {
-                    if c == comm {
-                        nodes.push(node);
-                    }
-                }
-                nodes.sort_unstable();
-                nodes
-            }
-        }
-    }
-
-    pub fn sorted(&self) -> Vec<(usize, usize)> {
-        let mut kv: Vec<_> = self.node_to_comm.iter().map(|(&k, &v)| (k, v)).collect();
-        kv.sort_by(|k1, k2| k1.0.cmp(&k2.0));
-        kv
+    pub fn iter(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.node_to_comm.iter().enumerate().map(|(n, &c)| (n, c))
     }
 }
 
@@ -87,9 +70,9 @@ struct Community {
     graph: Graph,
     size: usize,
     min_mod: f64,
-    node_to_comm: HashMap<usize, usize>,
+    node_to_comm: Vec<Option<usize>>,
     inside: Vec<f64>,
-    wdeg: Vec<f64>,
+    total: Vec<f64>,
     neigh_weight: Vec<f64>,
     neigh_pos: Vec<usize>,
     neigh_last: usize,
@@ -98,13 +81,13 @@ struct Community {
 impl Community {
     fn new(graph: Graph, min_mod: f64) -> Self {
         let size = graph.num_nodes();
-        let mut node_to_comm = HashMap::with_capacity(size);
+        let mut node_to_comm = Vec::with_capacity(size);
         let mut inside = Vec::with_capacity(size);
-        let mut wdeg = Vec::with_capacity(size);
+        let mut total = Vec::with_capacity(size);
         for node in 0..size {
-            node_to_comm.insert(node, node);
-            inside.push(graph.num_self_loops(node) as f64);
-            wdeg.push(graph.wdeg(node));
+            node_to_comm.push(Some(node));
+            inside.push(graph.loops(node));
+            total.push(graph.wdeg(node));
         }
         Self {
             graph,
@@ -112,7 +95,7 @@ impl Community {
             min_mod,
             node_to_comm,
             inside,
-            wdeg,
+            total,
             neigh_weight: vec![-1.0; size],
             neigh_pos: vec![0; size],
             neigh_last: 0,
@@ -121,22 +104,22 @@ impl Community {
 
     fn remove(&mut self, node: usize, comm: usize, dnode_comm: f64) {
         assert!(node < self.size);
-        self.wdeg[comm] -= self.graph.wdeg(node);
-        self.inside[comm] -= 2.0 * dnode_comm + self.graph.num_self_loops(node) as f64;
-        self.node_to_comm.remove(&node);
+        self.total[comm] -= self.graph.wdeg(node);
+        self.inside[comm] -= 2.0 * dnode_comm + self.graph.loops(node) as f64;
+        self.node_to_comm[node] = None;
     }
 
     fn insert(&mut self, node: usize, comm: usize, dnode_comm: f64) {
         assert!(node < self.size);
-        self.wdeg[comm] += self.graph.wdeg(node);
-        self.inside[comm] += 2.0 * dnode_comm + self.graph.num_self_loops(node) as f64;
-        self.node_to_comm.insert(node, comm);
+        self.total[comm] += self.graph.wdeg(node);
+        self.inside[comm] += 2.0 * dnode_comm + self.graph.loops(node) as f64;
+        self.node_to_comm[node] = Some(comm);
     }
 
     fn modularity(&self) -> f64 {
         let mut q = 0.0;
         let t = self.graph.weight_sum();
-        for (node, wdeg) in self.wdeg.iter().enumerate().filter(|(_, &w)| w > 0.0) {
+        for (node, wdeg) in self.total.iter().enumerate().filter(|(_, &w)| w > 0.0) {
             let x = wdeg / t;
             q += self.inside[node] / t - x * x;
         }
@@ -146,7 +129,7 @@ impl Community {
     #[inline]
     fn modularity_gain(&self, node: usize, comm: usize, dnode_comm: f64, wdeg: f64) -> f64 {
         assert!(node < self.size);
-        dnode_comm - self.wdeg[comm] * wdeg / self.graph.weight_sum()
+        dnode_comm - self.total[comm] * wdeg / self.graph.weight_sum()
     }
 
     fn neigh_comm(&mut self, node: usize) {
@@ -154,21 +137,22 @@ impl Community {
             self.neigh_weight[pos] = -1.0;
         }
 
-        self.neigh_pos[0] = self.node_to_comm[&node];
-        self.neigh_weight.insert(self.neigh_pos[0], 0.0);
+        self.neigh_pos[0] = self.node_to_comm[node].unwrap();
+        self.neigh_weight[self.neigh_pos[0]] = 0.0;
         self.neigh_last = 1;
 
         for &neigh in self.graph.neighbors(node) {
-            let neigh_comm = self.node_to_comm[&neigh];
-            let neigh_weight = self.wdeg[neigh];
+            if let Some(neigh_comm) = self.node_to_comm[neigh] {
+                let neigh_weight = self.total[neigh];
 
-            if neigh != node {
-                if (self.neigh_weight[neigh_comm] - -1.0).abs() < f64::EPSILON {
-                    self.neigh_weight[neigh_comm] = 0.0;
-                    self.neigh_pos[self.neigh_last] = neigh_comm;
-                    self.neigh_last += 1;
+                if neigh != node {
+                    if (self.neigh_weight[neigh_comm] - -1.0).abs() < f64::EPSILON {
+                        self.neigh_weight[neigh_comm] = 0.0;
+                        self.neigh_pos[self.neigh_last] = neigh_comm;
+                        self.neigh_last += 1;
+                    }
+                    self.neigh_weight[neigh_comm] += neigh_weight;
                 }
-                self.neigh_weight[neigh_comm] += neigh_weight;
             }
         }
     }
@@ -185,8 +169,8 @@ impl Community {
             let mut num_moves = 0;
 
             for &node in &rand_order {
-                let comm = self.node_to_comm[&node];
-                let wdeg = self.wdeg[node];
+                let comm = self.node_to_comm[node].unwrap();
+                let wdeg = self.graph.wdeg(node);
 
                 self.neigh_comm(node);
                 self.remove(node, comm, self.neigh_weight[comm]);
@@ -223,27 +207,27 @@ impl Community {
         improved
     }
 
-    // has to be a better way ... this is pretty sloppy
     fn partition_to_graph(&mut self) -> Graph {
-        let mut renumber = HashMap::with_capacity(self.size);
+        let mut pop = vec![false; self.size];
         for node in 0..self.size {
-            renumber
-                .entry(self.node_to_comm[&node])
-                .and_modify(|e| *e += 1)
-                .or_insert(0);
+            let comm = self.node_to_comm[node].unwrap();
+            if let Some(false) = pop.get(comm) {
+                pop[comm] = true;
+            }
         }
 
         let mut fin = 0;
+        let mut renumber = vec![None; self.size];
         for comm in 0..self.size {
-            if let Entry::Occupied(mut e) = renumber.entry(comm) {
-                e.insert(fin);
+            if let Some(true) = pop.get(comm) {
+                renumber[comm] = Some(fin);
                 fin += 1;
             }
         }
 
         let mut comm_nodes = vec![Vec::new(); fin];
         for node in 0..self.size {
-            comm_nodes[renumber[&self.node_to_comm[&node]]].push(node);
+            comm_nodes[renumber[self.node_to_comm[node].unwrap()].unwrap()].push(node);
         }
 
         let mut degs = Vec::with_capacity(comm_nodes.len());
@@ -253,8 +237,8 @@ impl Community {
             for &node in nodes.iter() {
                 let neighbors = self.graph.neighbors(node);
                 let neighbor_weights = self.graph.neighbor_weights(node);
-                for (neigh, weight) in neighbors.iter().zip(neighbor_weights.iter()) {
-                    let neigh_comm = renumber[&self.node_to_comm[neigh]];
+                for (&neigh, weight) in neighbors.iter().zip(neighbor_weights.iter()) {
+                    let neigh_comm = renumber[self.node_to_comm[neigh].unwrap()];
                     *comm_links.entry(neigh_comm).or_insert(0.0) += weight;
                 }
             }
@@ -263,16 +247,15 @@ impl Community {
         }
 
         for node in 0..self.size {
-            self.node_to_comm
-                .insert(node, renumber[&self.node_to_comm[&node]]);
+            self.node_to_comm[node] = Some(renumber[self.node_to_comm[node].unwrap()].unwrap());
         }
 
         let mut coo = CooMatrix::new(links.len(), links.len());
         for (node, neighbors) in links.iter().enumerate() {
             coo.push(node, node, degs[node] as f64);
             for (&neigh, &neigh_weight) in neighbors {
-                coo.push(node, neigh, neigh_weight);
-                coo.push(neigh, node, neigh_weight);
+                coo.push(node, neigh.unwrap(), neigh_weight);
+                coo.push(neigh.unwrap(), node, neigh_weight);
             }
         }
         Graph::from_csr(CsrMatrix::from(&coo))
@@ -282,12 +265,39 @@ impl Community {
 #[derive(Clone, Debug)]
 struct Graph {
     inner: CsrMatrix<f64>,
+    wdeg: Vec<f64>,
+    loops: Vec<f64>,
+    wsum: f64,
 }
 
 impl Graph {
     fn from_csr(m: CsrMatrix<f64>) -> Self {
         assert_eq!(m.nrows(), m.ncols());
-        Self { inner: m }
+        let mut wdeg = Vec::with_capacity(m.nrows());
+        let mut loops = vec![0.0; m.nrows()];
+        let mut wsum = 0.0;
+        for node in 0..m.nrows() {
+            let start = m.row_offsets()[node];
+            let end = m.row_offsets()[node + 1];
+            let mut sum = 1.0;
+            for (&nb, &w) in m.col_indices()[start..end]
+                .iter()
+                .zip(m.values()[start..end].iter())
+            {
+                sum += w;
+                if nb == node {
+                    loops[node] += w;
+                }
+            }
+            wsum += sum;
+            wdeg.push(sum);
+        }
+        Self {
+            inner: m,
+            wdeg,
+            loops,
+            wsum,
+        }
     }
 
     fn neighbors(&self, node: usize) -> &[usize] {
@@ -298,27 +308,28 @@ impl Graph {
         &self.inner.values()[self.neighbor_range(node)]
     }
 
+    #[inline]
     fn neighbor_range(&self, node: usize) -> Range<usize> {
         self.inner.row_offsets()[node]..self.inner.row_offsets()[node + 1]
     }
 
+    #[inline]
     fn wdeg(&self, node: usize) -> f64 {
-        let sum: f64 = self.neighbor_weights(node).iter().sum();
-        sum + 1.0
+        self.wdeg[node]
     }
 
-    fn num_self_loops(&self, node: usize) -> usize {
-        self.neighbors(node)
-            .iter()
-            .filter(|&neigh| *neigh == node)
-            .count()
+    #[inline]
+    fn loops(&self, node: usize) -> f64 {
+        self.loops[node]
     }
 
+    #[inline]
     fn num_nodes(&self) -> usize {
         self.inner.nrows()
     }
 
+    #[inline]
     fn weight_sum(&self) -> f64 {
-        (0..self.num_nodes()).map(|node| self.wdeg(node)).sum()
+        self.wsum
     }
 }
