@@ -154,11 +154,11 @@ pub fn force_atlas(
             }
         });
 
-        /*for i in 0..n {
+        for i in 0..n {
             for k in 0..dim {
                 forces_prev[(i, k)] = forces[(i, k)];
                 forces[(i, k)] = 0.0;
             }
-        }*/
+        }
     }
 }
