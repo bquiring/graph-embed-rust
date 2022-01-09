@@ -143,15 +143,13 @@ impl Community {
 
         for &neigh in self.graph.neighbors(node) {
             if let Some(neigh_comm) = self.node_to_comm[neigh] {
-                let neigh_weight = self.total[neigh];
-
                 if neigh != node {
                     if (self.neigh_weight[neigh_comm] - -1.0).abs() < f64::EPSILON {
                         self.neigh_weight[neigh_comm] = 0.0;
                         self.neigh_pos[self.neigh_last] = neigh_comm;
                         self.neigh_last += 1;
                     }
-                    self.neigh_weight[neigh_comm] += neigh_weight;
+                    self.neigh_weight[neigh_comm] += self.total[neigh];
                 }
             }
         }
@@ -164,7 +162,11 @@ impl Community {
 
         let mut improved = false;
         let mut new_mod = self.modularity();
+        let mut iter = 0;
+        println!("next level");
         loop {
+            println!("loop iter = {}", iter);
+            iter += 1;
             let cur_mod = new_mod;
             let mut num_moves = 0;
 

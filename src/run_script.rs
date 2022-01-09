@@ -1,5 +1,5 @@
-use graph_embed_rust::{community::*, force_atlas::*, io::*};
-use nalgebra::base::DMatrix;
+use graph_embed_rust::{community::*, force_atlas::*, grid::Grid, io::*};
+//use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
@@ -16,7 +16,8 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     let dist = Uniform::from(-1.0..1.0);
     let mut rand_elems = Vec::with_capacity(n * dim);
     rand_elems.extend((0..n * dim).map(|_| rng.sample(&dist)));
-    let mut coords = DMatrix::from_vec(n, dim, rand_elems);
+    //let mut coords = DMatrix::from_vec(n, dim, rand_elems);
+    let mut coords = Grid::from_vec(n, dim, rand_elems);
 
     let start = Instant::now();
     force_atlas(&m, dim, 1, &mut coords, &ForceAtlasArgs::default());

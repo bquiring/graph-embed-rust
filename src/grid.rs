@@ -20,6 +20,14 @@ impl<T: Copy + Default> Grid<T> {
         }
     }
 
+    pub fn from_vec(nrows: usize, ncols: usize, v: Vec<T>) -> Self {
+        Self {
+            inner: v,
+            nrows,
+            ncols,
+        }
+    }
+
     pub fn nrows(&self) -> usize {
         self.nrows
     }
