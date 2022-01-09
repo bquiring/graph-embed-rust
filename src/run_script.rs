@@ -20,7 +20,7 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     let mut coords = Grid::from_vec(n, dim, rand_elems);
 
     let start = Instant::now();
-    force_atlas(&m, dim, 1, &mut coords, &ForceAtlasArgs::default());
+    force_atlas(&m, dim, 1000, &mut coords, &ForceAtlasArgs::default());
     //coords = coords.normalize();
     let duration = start.elapsed();
     println!("force atlas time elapsed: {:?}", duration);
