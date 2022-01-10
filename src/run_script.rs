@@ -1,5 +1,4 @@
 use graph_embed_rust::{community::*, embed::*, force_atlas::*, io::*};
-//use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
@@ -11,12 +10,15 @@ fn make_PT(level: &Level) -> CsrMatrix<f64> {
     let mut PT_I = vec![0; m + 1];
     let mut PT_J = vec![0; n];
     let PT_D = vec![1.0; n];
+
     for a in 0..m {
         PT_I[a + 1] = level.comm_size(a).unwrap();
     }
+
     for a in 0..m {
         PT_I[a + 1] += PT_I[a];
     }
+
     let mut count = vec![0; m];
     for i in 0..n {
         let a = level.comm_of(i).unwrap();
@@ -25,8 +27,7 @@ fn make_PT(level: &Level) -> CsrMatrix<f64> {
         PT_J[PT_I[a] + count[a]] = i;
         count[a] += 1;
     }
-    let PT: CsrMatrix<f64> = CsrMatrix::try_from_csr_data(m, n, PT_I, PT_J, PT_D).unwrap();
-    PT
+    CsrMatrix::try_from_csr_data(m, n, PT_I, PT_J, PT_D).unwrap()
 }
 
 pub fn run_script(graph_path: &Path, dim: usize) {
@@ -53,13 +54,11 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     let start = Instant::now();
     force_atlas(&A, dim, 1000, &mut coords, &ForceAtlasArgs::default());
     //coords = coords.normalize();
-    let duration = start.elapsed();
-    println!("force atlas time elapsed: {:?}", duration);
+    println!("force atlas time elapsed: {:?}", start.elapsed());
 
     let start = Instant::now();
     let levels = louvain(&A, 0.000001);
-    let duration = start.elapsed();
-    println!("community time elapsed: {:?}", duration);
+    println!("community time elapsed: {:?}", start.elapsed());
 
     let mut As = Vec::new();
     let mut PTs = Vec::new();
@@ -77,7 +76,8 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         PTs.push(PT);
         As.push(Ac);
     }
-    let coords = embedMultilevel(
+
+    let coords = embed_multilevel(
         &As,
         &PTs,
         dim,

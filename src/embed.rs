@@ -4,15 +4,15 @@ use rand::{distributions::Uniform, Rng};
 
 // the algorithm
 
-pub fn computeRadii(
+pub fn compute_radii(
     A: &CsrMatrix<f64>,
     //coords : &Grid<f64>,
     coords: &[Vec<f64>],
     radii: &mut Vec<f64>,
-    doAll: bool,
+    do_all: bool,
 ) {
     let n = A.nrows();
-    assert!(n == radii.len());
+    assert_eq!(n, radii.len());
     for i in 0..n {
         radii[i] = -1.0;
     }
@@ -40,7 +40,7 @@ pub fn computeRadii(
     }
 
     for i in 0..n {
-        if doAll {
+        if do_all {
             for j in i + 1..n {
                 let distance_ij = distance(&coords[i], &coords[j]);
                 times.push((distance_ij / (rate[i] + rate[j]), i, j));
@@ -85,8 +85,8 @@ pub fn computeRadii(
             // only j is live
             let distance_ij = time_ij * rate[j];
             radii[j] = distance_ij;
-            for r in 0..times.len() {
-                let (time_ij_prime, i_prime, j_prime) = times[r];
+            for time in &mut times {
+                let (time_ij_prime, i_prime, j_prime) = *time;
                 if i_prime == j || j_prime == j {
                     let (same, other) = if i_prime == j {
                         (i_prime, j_prime)
@@ -96,7 +96,7 @@ pub fn computeRadii(
                     // this is not the case if both are dead, but in that case we don't care
                     let distance_ij_prime = time_ij_prime * (rate[other] + rate[same]);
                     let distance_part = distance_ij * rate[same] / (rate[i] + rate[j]);
-                    times[r].0 = (distance_ij_prime - distance_part) / rate[other];
+                    time.0 = (distance_ij_prime - distance_part) / rate[other];
                 }
             }
             times.sort_by(|(t1, _, _), (t2, _, _)| t2.partial_cmp(t1).unwrap());
@@ -168,7 +168,7 @@ pub fn normalizeCommunityEmbeddings(
     }
 }
 
-pub fn embedMultilevel<F, G>(
+pub fn embed_multilevel<F, G>(
     As: &[CsrMatrix<f64>],
     PTs: &[CsrMatrix<f64>],
     dim: usize,
@@ -184,8 +184,8 @@ where
     let n0 = As[As.len() - 1].nrows();
     let mut rng = rand::thread_rng();
     let dist = Uniform::from(-1.0..1.0);
-    let mut rand_elems = Vec::with_capacity(n0 * dim);
-    rand_elems.extend((0..n0 * dim).map(|_| rng.sample(&dist)));
+    //let mut rand_elems = Vec::with_capacity(n0 * dim);
+    //rand_elems.extend((0..n0 * dim).map(|_| rng.sample(&dist)));
     //let mut coords_A = Grid::from_vec(n0, dim, rand_elems);
     let mut coords_A: Vec<_> = vec![vec![0.0; dim]; n0];
     for i in 0..n0 {
@@ -230,9 +230,9 @@ where
             radii_Ac = vec![0.0; A.nrows()];
             // compute the radii for A (soon to be Ac)
             if level == As.len() - 1 {
-                computeRadii(A, &coords_Ac, &mut radii_Ac, true)
+                compute_radii(A, &coords_Ac, &mut radii_Ac, true)
             } else {
-                computeRadii(A, &coords_Ac, &mut radii_Ac, false)
+                compute_radii(A, &coords_Ac, &mut radii_Ac, false)
             }
         }
     }
