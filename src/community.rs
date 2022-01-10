@@ -15,8 +15,9 @@ impl Level {
     fn new(node_to_comm: Vec<Option<usize>>) -> Self {
         let node_to_comm: Vec<_> = node_to_comm.iter().flatten().copied().collect();
         let comm_sizes = if let Some(&max) = node_to_comm.iter().max() {
-            let mut comm_sizes = vec![0; max];
-            for comm in 0..max {
+            let num_comms = max+1;
+            let mut comm_sizes = vec![0; num_comms];
+            for comm in 0..num_comms {
                 let size = node_to_comm.iter().filter(|&c| *c == comm).count();
                 comm_sizes[comm] += size;
             }

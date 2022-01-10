@@ -188,7 +188,9 @@ pub fn force_atlas_multilevel (
     dim: usize,
     iter: usize,
     //coords: &mut Grid<f64>,
+    //coords_Ac: &mut Grid<f64>,
     coords: &mut Vec<Vec<f64>>,
+    coords_Ac: &Vec<Vec<f64>>,
     PT: &CsrMatrix<f64>,
     args: &ForceAtlasArgs,
 ) {
@@ -199,6 +201,7 @@ pub fn force_atlas_multilevel (
 
     assert_eq!(A.nrows(), A.ncols());
     assert_eq!(A.nrows(), n);
+
     // assert_eq!(coords.ncols(), dim);
     // TODO: more checks
 
@@ -208,15 +211,31 @@ pub fn force_atlas_multilevel (
 
     let PT_I = PT.row_offsets();
     let PT_J = PT.col_indices();
-    
+
+    let mut commOf = vec![0; n];
+    for a in 0..m {
+        for c in PT_I[a]..PT_I[a+1] {
+            commOf[PT_J[c]] = a
+        }
+    }
+
+    let mut global_to_local = vec![0; n];
+    for a in 0..m {
+        let mut count = 0;
+        for c in PT_I[a]..PT_I[a+1] {
+            global_to_local[PT_J[c]] = count;
+            count += 1;
+        }
+    }
+
     for a in 0..m {
         let n = PT_I[a+1] - PT_I[a];
-        let mut v = vec![0; n];
+        let mut local_to_global = vec![0; n];
         for c in PT_I[a]..PT_I[a+1] {
-            v[c - PT_I[a]] = PT_J[c];
+            local_to_global[c - PT_I[a]] = PT_J[c];
         }
 
-        let mut coords_loc = Grid::new(n, dim);
+        let mut coords_loc = vec![vec![0.0; dim]; n]; //Grid::new(n, dim);
 
         let mut rng = rand::thread_rng();
         let dist = Uniform::from(-1.0..1.0);
@@ -239,17 +258,16 @@ pub fn force_atlas_multilevel (
             }
         }
 
-        let mut forces_prev = Grid::new(n, dim);
-        let mut forces = Grid::new(n, dim);
+        let mut forces_prev = vec![vec![0.0; dim]; n]; // Grid::new(n, dim);
+        let mut forces = vec![vec![0.0; dim]; n]; // Grid::new(n, dim);
         let mut swing = vec![0.0; n];
 
         for _ in 0..iter {
             // TODO: parallelize here... no idea if this is right
-            forces.par_iter_mut().enumerate().for_each(|(i, row)| {
+            for i in 0..n {
                 let mut force_i = vec![0.0; dim];
                 for j in 0..n {
                     if i != j {
-                        //                    let dis_ij = coords_loc.row(i).metric_distance(&coords_loc.row(j)).max(epsilon);
                         let dis_ij = distance(&coords_loc[i], &coords_loc[j]).max(epsilon);
                         let Fr_ij = deg[i] * deg[j] * args.repel / (dis_ij * dis_ij);
 
@@ -261,39 +279,51 @@ pub fn force_atlas_multilevel (
                     }
                 }
 
-                for k2 in I[i]..I[i + 1] {
-                    let j = J[k2];
-                    //                let dis_ij = coords_loc.row(i).metric_distance(&coords_loc.row(j)).max(epsilon);
-                    let dis_ij = distance(&coords_loc[i], &coords_loc[j]).max(epsilon);
-                    let mut fa_ij = if args.linlog { dis_ij.log2() } else { dis_ij };
-                    let a_ij = if args.use_weights { D[k2] } else { 1.0 };
-
-                    // if args.delta == 1.0 /* fix */ {
-                    //     fa_ij *= a_ij;
-                    // } else if args.delta != 0.0 {
-                    //     fa_ij = (if a_ij < 0 { -1 } else { 1 }) * a_ij.abs().pow(delta) * fa_ij;
-                    // }
-                    fa_ij *= a_ij;
-
-                    if args.no_hubs {
-                        fa_ij /= deg[i];
-                    }
-
-                    let Fa_ij = args.attract * fa_ij;
-                    for k in 0..dim {
-                        let direction = (coords_loc[j][k] - coords_loc[i][k]) / dis_ij;
-                        let Fa_sum = direction * Fa_ij;
-                        force_i[k] += Fa_sum;
-                    }
-                }
-
-                //            let mag = coords_loc.row(i).magnitude();
                 let mag = magnitude(&coords_loc[i]);
-                for (k, force) in row.iter_mut().enumerate() {
-                    let Fg_ki = -coords_loc[i][k] / mag * args.gravity * deg[i];
-                    *force = force_i[k] + Fg_ki;
+                for k2 in I[local_to_global[i]]..I[local_to_global[i] + 1] {
+                    let j = J[k2];
+                    if a == commOf[j] {
+                        let j = global_to_local[j];
+                        let dis_ij = distance(&coords_loc[i], &coords_loc[j]).max(epsilon);
+                        let mut fa_ij = if args.linlog { dis_ij.log2() } else { dis_ij };
+                        let a_ij = if args.use_weights { D[k2] } else { 1.0 };
+
+                        // if args.delta == 1.0 /* fix */ {
+                        //     fa_ij *= a_ij;
+                        // } else if args.delta != 0.0 {
+                        //     fa_ij = (if a_ij < 0 { -1 } else { 1 }) * a_ij.abs().pow(delta) * fa_ij;
+                        // }
+                        fa_ij *= a_ij;
+
+                        if args.no_hubs {
+                            fa_ij /= deg[i];
+                        }
+
+                        let Fa_ij = args.attract * fa_ij;
+                        for k in 0..dim {
+                            let direction = (coords_loc[j][k] - coords_loc[i][k]) / dis_ij;
+                            let Fa_sum = direction * Fa_ij;
+                            force_i[k] += Fa_sum;
+                        }
+                    } else {
+                        let pull = 100.0;
+	                let dis_ij = distance (&coords_Ac[a], &coords_Ac[commOf[j]]).max(epsilon);
+	                let Fo_ij = pull;
+	                
+	                for k in 0..dim {
+		            let direction = (coords_Ac[commOf[j]][k] - coords_Ac[a][k]) / dis_ij;
+		            let Fo_sum = direction * Fo_ij / mag;
+		            force_i[k] += Fo_sum;
+	                }
+                        
+                    }
                 }
-            });
+
+                for k in 0..dim {
+                    let Fg_ki = -coords_loc[i][k] / mag * args.gravity * deg[i];
+                    forces[i][k] = force_i[k] + Fg_ki;
+                }
+            };
 
             // TODO: parallize here
             swing
@@ -332,9 +362,9 @@ pub fn force_atlas_multilevel (
                 }
             }
         }
-        for i in 0..0 {
+        for i in 0..n {
             for k in 0..dim {
-                coords[v[i]][k] = coords_loc[i][k];
+                coords[local_to_global[i]][k] = coords_loc[i][k];
             }
         }
     }

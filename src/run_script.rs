@@ -12,7 +12,7 @@ fn make_PT (level : &Level) -> CsrMatrix<f64> {
     let mut PT_J = vec![0; n];
     let PT_D = vec![1.0; n];
     for a in 0..m {
-        PT_I[a] = level.comm_size(a).unwrap();
+        PT_I[a+1] = level.comm_size(a).unwrap();
     }
     for a in 0..m {
         PT_I[a+1] += PT_I[a];
@@ -20,6 +20,8 @@ fn make_PT (level : &Level) -> CsrMatrix<f64> {
     let mut count = vec![0; m];
     for i in 0..n {
         let a = level.comm_of (i).unwrap();
+        // println! ("{:?} {:?}", a, m);
+        assert! (count[a] < PT_I[a+1] - PT_I[a]);
         PT_J[PT_I[a] + count[a]] = i;
         count[a] += 1;
     }
@@ -60,33 +62,26 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     println!("community time elapsed: {:?}", duration);
 
     
-    let mut radii : Vec<f64> = vec![0.0; n];
-    let start = Instant::now();
-    computeRadii (&A, &coords, &mut radii);
-    let duration = start.elapsed();
-    println!("Radii time elapsed: {:?}", duration);
-
-    
     let mut As = Vec::new();
     let mut PTs = Vec::new();
     As.push (A);
-    // for i in 0..levels.len() {
-    //     let level = &levels[i];
-    //     let PT = make_PT (level);
-    //     let A = &As[i];
-    //     
-    //     // form the quotient graph
-    //     let Ac = PT * A * PT.transpose();
-    //     // remember these
-    //     PTs.push (PT);
-    //     As.push (Ac);
-    // }
+    for i in 0..1 /* levels.len() */ {
+        let level = &levels[i];
+        let PT = make_PT (level);
+        let A = &As[i];
+        
+        // form the quotient graph
+        let Ac = &PT * A * PT.transpose();
+        // remember these
+        PTs.push (PT);
+        As.push (Ac);
+    }
     let coords = embedMultilevel (&As, &PTs, dim,
                                   |A, dim, coords| {
                                       force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
                                   },
-                                  |A, dim, coords, PT| {
-                                      force_atlas_multilevel (A, dim, 1000, coords, &PT, &ForceAtlasArgs::default());
+                                  |A, dim, coords, coords_Ac, PT| {
+                                      force_atlas_multilevel (A, dim, 1000, coords, coords_Ac, &PT, &ForceAtlasArgs::default());
                                   });
     
 

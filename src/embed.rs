@@ -9,7 +9,8 @@ use rand::{distributions::Uniform, Rng};
 pub fn computeRadii (A : &CsrMatrix<f64>,
                      //coords : &Grid<f64>,
                      coords : &Vec<Vec<f64>>,
-                     radii : &mut Vec<f64>) {
+                     radii : &mut Vec<f64>,
+                     doAll : bool) {
 
     let n = A.nrows();
     assert!(n == radii.len());
@@ -22,11 +23,18 @@ pub fn computeRadii (A : &CsrMatrix<f64>,
     // TODO: factor in weights!
 
     for i in 0..n {
-        for edge in A_I[i]..A_I[i+1] {
-            let j = A_J[edge];
-            if i < j {
+        if doAll {
+            for j in i+1..n {
                 let distance_ij = distance(&coords[i], &coords[j]);
                 times.push((-distance_ij/2.0, i, j));
+            }
+        } else {
+            for edge in A_I[i]..A_I[i+1] {
+                let j = A_J[edge];
+                if i < j {
+                    let distance_ij = distance(&coords[i], &coords[j]);
+                    times.push((-distance_ij/2.0, i, j));
+                }
             }
         }
     }
@@ -58,9 +66,8 @@ pub fn computeRadii (A : &CsrMatrix<f64>,
             times.sort_by(|(t1, _, _), (t2, _, _)| t1.partial_cmp(t2).unwrap());
             assignedCount += 1;
         } else if radii[i] <= 0.0 && radii[j] <= 0.0 { // both are live
-            // TODO: shouldn't it be distance/2?
-            radii[i] = distance_ij;
-            radii[j] = distance_ij;
+            radii[i] = distance_ij / 2.0;
+            radii[j] = distance_ij / 2.0;
             for r in 0..times.len() {
                 let (_, i_prime, j_prime) = times[r];
                 if i_prime == i || j_prime == i || i_prime == j || j_prime == j {
@@ -119,13 +126,13 @@ pub fn embedMultilevel<F,G> (As: &Vec<CsrMatrix<f64>>,
                              baseEmbedder: F,
                              localEmbedder: G) -> /*Grid<f64> where
     F : Fn (&CsrMatrix<f64>, usize, &mut Grid<f64>) -> (),
-G : Fn (&CsrMatrix<f64>, usize, &mut Grid<f64>, &CsrMatrix<f64>) -> () { */
+    G : Fn (&CsrMatrix<f64>, usize, &mut Grid<f64>, &mut Grid<f64>, &CsrMatrix<f64>) -> () { */
     Vec<Vec<f64>> where
     F : Fn (&CsrMatrix<f64>, usize, &mut Vec<Vec<f64>>) -> (),
-G : Fn (&CsrMatrix<f64>, usize, &mut Vec<Vec<f64>>, &CsrMatrix<f64>) -> () {
+    G : Fn (&CsrMatrix<f64>, usize, &mut Vec<Vec<f64>>, &Vec<Vec<f64>>, &CsrMatrix<f64>) -> () {
     let mut radii_Ac : Vec<f64> = vec![0.0; 0];
 
-    let n0 = As[0].nrows();
+    let n0 = As[As.len() - 1].nrows();
     let mut rng = rand::thread_rng();
     let dist = Uniform::from(-1.0..1.0);
     let mut rand_elems = Vec::with_capacity(n0 * dim);
@@ -159,7 +166,7 @@ G : Fn (&CsrMatrix<f64>, usize, &mut Vec<Vec<f64>>, &CsrMatrix<f64>) -> () {
             // - coordinates for Ac have been computed
             
             // embed all the communities in their own space
-            localEmbedder (A, dim, &mut coords_A, &PT);
+            localEmbedder (A, dim, &mut coords_A, &coords_Ac, &PT);
             // embed the local embeddings into the global embedding space
             normalizeCommunityEmbeddings (&mut coords_A, &coords_Ac, &radii_Ac, &PT);
         }
@@ -171,8 +178,13 @@ G : Fn (&CsrMatrix<f64>, usize, &mut Vec<Vec<f64>>, &CsrMatrix<f64>) -> () {
             // coords_A = Grid::new(As[level-1].nrows(), dim);
             coords_A = vec![vec![0.0; dim]; As[level-1].nrows()];
 
+            radii_Ac = vec![0.0; A.nrows()];
             // compute the radii for A (soon to be Ac)
-            computeRadii (&A, &coords_Ac, &mut radii_Ac)
+            if level == As.len()-1 {
+                computeRadii (&A, &coords_Ac, &mut radii_Ac, true)
+            } else {
+                computeRadii (&A, &coords_Ac, &mut radii_Ac, false)
+            }
         }
     }
     coords_A
