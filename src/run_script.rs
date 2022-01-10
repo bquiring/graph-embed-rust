@@ -1,32 +1,33 @@
-use graph_embed_rust::{community::*, force_atlas::*, grid::Grid, io::*, embed::*};
-//use nalgebra::base::DMatrix;
+use graph_embed_rust::{community::*, embed::*, force_atlas::*, io::*};
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
-fn make_PT (level : &Level) -> CsrMatrix<f64> {
+fn make_PT(level: &Level) -> CsrMatrix<f64> {
     let n = level.num_vert();
     let m = level.num_comm();
     // Form P transpose
-    let mut PT_I = vec![0; m+1];
+    let mut PT_I = vec![0; m + 1];
     let mut PT_J = vec![0; n];
     let PT_D = vec![1.0; n];
+
     for a in 0..m {
-        PT_I[a+1] = level.comm_size(a).unwrap();
+        PT_I[a + 1] = level.comm_size(a).unwrap();
     }
+
     for a in 0..m {
-        PT_I[a+1] += PT_I[a];
+        PT_I[a + 1] += PT_I[a];
     }
+
     let mut count = vec![0; m];
     for i in 0..n {
-        let a = level.comm_of (i).unwrap();
+        let a = level.comm_of(i).unwrap();
         // println! ("{:?} {:?}", a, m);
-        assert! (count[a] < PT_I[a+1] - PT_I[a]);
+        assert!(count[a] < PT_I[a + 1] - PT_I[a]);
         PT_J[PT_I[a] + count[a]] = i;
         count[a] += 1;
     }
-    let PT : CsrMatrix<f64> = CsrMatrix::try_from_csr_data (m, n, PT_I, PT_J, PT_D).unwrap();
-    PT
+    CsrMatrix::try_from_csr_data(m, n, PT_I, PT_J, PT_D).unwrap()
 }
 
 pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
@@ -62,10 +63,8 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
 
     let start = Instant::now();
     let levels = louvain(&A, 0.000001);
-    let duration = start.elapsed();
-    println!("community time elapsed: {:?}", duration);
+    println!("community time elapsed: {:?}", start.elapsed());
 
-    
     let mut As = Vec::new();
     let mut PTs = Vec::new();
     println!("Level {:?} has {:?} vertices", 0, A.nrows());
@@ -73,26 +72,26 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
     let partial = 2;
     for i in 0..levels.len().min(partial) {
         let level = &levels[i];
-        let PT = make_PT (level);
+        let PT = make_PT(level);
         let A = &As[i];
-        
+
         // form the quotient graph
         let Ac = &PT * A * PT.transpose();
 
         println!("Level {:?} has {:?} vertices", i+1, Ac.nrows());
         // remember these
-        PTs.push (PT);
-        As.push (Ac);
+        PTs.push(PT);
+        As.push(Ac);
     }
 
     let start = Instant::now();
-    let coords = embedMultilevel (&As, &PTs, dim,
-                                  |A, dim, coords| {
-                                      force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
-                                  },
-                                  |A, dim, coords, coords_Ac, PT| {
-                                      force_atlas_multilevel (A, dim, 1000, coords, coords_Ac, &PT, &ForceAtlasArgs::default());
-                                  });
+    let coords = embed_multilevel (&As, &PTs, dim,
+                                   |A, dim, coords| {
+                                       force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
+                                   },
+                                   |A, dim, coords, coords_Ac, PT| {
+                                       force_atlas_multilevel (A, dim, 1000, coords, coords_Ac, &PT, &ForceAtlasArgs::default());
+                                   });
     let duration = start.elapsed();
     println!("embedding time elapsed: {:?}", duration);
 

@@ -1,9 +1,8 @@
-use crate::grid::Grid;
 use crate::util::*;
 //use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
-use rayon::prelude::*;
 use rand::{distributions::Uniform, Rng};
+use rayon::prelude::*;
 
 pub struct ForceAtlasArgs {
     pub ks: f64,
@@ -126,7 +125,7 @@ pub fn force_atlas(
                 //*force = force_i[k] + Fg_ki;
                 forces[i][k] = force_i[k] + Fg_ki;
             }
-        };
+        }
 
         // TODO: parallize here
         /*
@@ -181,16 +180,14 @@ pub fn force_atlas(
     }
 }
 
-
-
-pub fn force_atlas_multilevel (
+pub fn force_atlas_multilevel(
     A: &CsrMatrix<f64>,
     dim: usize,
     iter: usize,
     //coords: &mut Grid<f64>,
     //coords_Ac: &mut Grid<f64>,
     coords: &mut Vec<Vec<f64>>,
-    coords_Ac: &Vec<Vec<f64>>,
+    coords_Ac: &[Vec<f64>],
     PT: &CsrMatrix<f64>,
     args: &ForceAtlasArgs,
 ) {
@@ -212,26 +209,26 @@ pub fn force_atlas_multilevel (
     let PT_I = PT.row_offsets();
     let PT_J = PT.col_indices();
 
-    let mut commOf = vec![0; n];
+    let mut comm_of = vec![0; n];
     for a in 0..m {
-        for c in PT_I[a]..PT_I[a+1] {
-            commOf[PT_J[c]] = a
+        for c in PT_I[a]..PT_I[a + 1] {
+            comm_of[PT_J[c]] = a
         }
     }
 
     let mut global_to_local = vec![0; n];
     for a in 0..m {
         let mut count = 0;
-        for c in PT_I[a]..PT_I[a+1] {
+        for c in PT_I[a]..PT_I[a + 1] {
             global_to_local[PT_J[c]] = count;
             count += 1;
         }
     }
 
     for a in 0..m {
-        let n = PT_I[a+1] - PT_I[a];
+        let n = PT_I[a + 1] - PT_I[a];
         let mut local_to_global = vec![0; n];
-        for c in PT_I[a]..PT_I[a+1] {
+        for c in PT_I[a]..PT_I[a + 1] {
             local_to_global[c - PT_I[a]] = PT_J[c];
         }
 
@@ -245,7 +242,6 @@ pub fn force_atlas_multilevel (
             }
         }
 
-        
         let mut deg = vec![0.0; n];
         if args.use_weights {
             for i in 0..n {
@@ -282,7 +278,7 @@ pub fn force_atlas_multilevel (
                 let mag = magnitude(&coords_loc[i]);
                 for k2 in I[local_to_global[i]]..I[local_to_global[i] + 1] {
                     let j = J[k2];
-                    if a == commOf[j] {
+                    if a == comm_of[j] {
                         let j = global_to_local[j];
                         let dis_ij = distance(&coords_loc[i], &coords_loc[j]).max(epsilon);
                         let mut fa_ij = if args.linlog { dis_ij.log2() } else { dis_ij };
@@ -307,15 +303,14 @@ pub fn force_atlas_multilevel (
                         }
                     } else {
                         let pull = 100.0;
-	                let dis_ij = distance (&coords_Ac[a], &coords_Ac[commOf[j]]).max(epsilon);
-	                let Fo_ij = pull;
-	                
-	                for k in 0..dim {
-		            let direction = (coords_Ac[commOf[j]][k] - coords_Ac[a][k]) / dis_ij;
-		            let Fo_sum = direction * Fo_ij / mag;
-		            force_i[k] += Fo_sum;
-	                }
-                        
+                        let dis_ij = distance(&coords_Ac[a], &coords_Ac[comm_of[j]]).max(epsilon);
+                        let Fo_ij = pull;
+
+                        for k in 0..dim {
+                            let direction = (coords_Ac[comm_of[j]][k] - coords_Ac[a][k]) / dis_ij;
+                            let Fo_sum = direction * Fo_ij / mag;
+                            force_i[k] += Fo_sum;
+                        }
                     }
                 }
 
@@ -323,7 +318,7 @@ pub fn force_atlas_multilevel (
                     let Fg_ki = -coords_loc[i][k] / mag * args.gravity * deg[i];
                     forces[i][k] = force_i[k] + Fg_ki;
                 }
-            };
+            }
 
             // TODO: parallize here
             swing

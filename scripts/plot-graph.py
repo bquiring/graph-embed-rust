@@ -21,6 +21,7 @@ parser.add_argument("-part", "--part", dest="partpath", help="input part FILE", 
 #parser.add_argument("-ball", "--ball", dest="ballpath", help="input ball FILE", metavar="FILE")
 parser.add_argument("-coords", "--coordinates", dest="coordspath", help="input coords FILE", metavar="FILE")
 parser.add_argument("-o", "--output", dest="outputpath", help="output FILE", metavar="FILE")
+parser.add_argument("--not-zero-indexed", dest="not_zero_indexed", help="are the vertices not zero-indexed", default=False, action="store_true")
 
 args = parser.parse_args()
 
@@ -52,6 +53,14 @@ for i in range(K):
 
 graphfile = open(graphpath)
 edges = [(int(line.strip().split(" ")[0]), int(line.strip().split(" ")[1])) for line in graphfile.readlines()]
+if args.not_zero_indexed:
+    edges = [(i-1, j-1) for (i, j) in edges]
+
+print(args.not_zero_indexed)
+for (i, j) in edges:
+    assert (i < n)
+    assert (j < n)
+assert (len(coords) == n)
 
 #======
 
