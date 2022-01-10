@@ -22,7 +22,6 @@ pub fn compute_radii(
     let A_J = A.col_indices();
     let A_D = A.values();
 
-    // TODO: factor in weights!
     let mut rate = vec![0.0; n];
     for i in 0..n {
         let mut found = false;

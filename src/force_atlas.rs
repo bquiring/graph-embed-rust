@@ -20,7 +20,7 @@ pub struct ForceAtlasArgs {
 impl Default for ForceAtlasArgs {
     fn default() -> Self {
         Self {
-            ks: 0.1,
+            ks: 0.03,
             ksmax: 1.0,
             repel: 1.0,
             attract: 1.0,
@@ -66,6 +66,22 @@ pub fn force_atlas(
         }
     }
 
+    let mut mass = vec![0.0; n];
+    for i in 0..n {
+        let mut found = false;
+        //for edge in I[i]..I[i + 1] {
+        //    let j = J[edge];
+        //    if i == j {
+        //        mass[i] = D[edge];
+        //        found = true;
+        //        break;
+        //    }
+        //}
+        if !found {
+            mass[i] = 1.0;
+        }
+    }
+
     /*
     let mut forces_prev = Grid::new(n, dim);
     let mut forces = Grid::new(n, dim);
@@ -83,7 +99,7 @@ pub fn force_atlas(
             for j in 0..n {
                 if i != j {
                     let dis_ij = distance(&coords[i], &coords[j]).max(epsilon);
-                    let Fr_ij = deg[i] * deg[j] * args.repel / (dis_ij * dis_ij);
+                    let Fr_ij = mass[i] * mass[j] * deg[i] * deg[j] * args.repel / (dis_ij * dis_ij);
 
                     for k in 0..dim {
                         let direction = -(coords[j][k] - coords[i][k]) / dis_ij;
@@ -138,18 +154,18 @@ pub fn force_atlas(
             swing[i] = distance(&forces[i], &forces_prev[i]);
         }
 
-        //let mut global_swing = 0.0;
-        //for i in 0..n {
-        //    globalSwing += ((deg[i] + 1.0) * swing[i]).max(epsilon);
-        //}
-        let global_swing = 1.0;
+        let mut global_swing = 0.0;
+        for i in 0..n {
+            global_swing += ((deg[i] + 1.0) * swing[i]).max(epsilon);
+        }
+        //let global_swing = 1.0;
 
-        //let mut global_traction = 0.0;
-        //for i in 0..n {
-        //    let traction_i = distance (&forces[i], &forces_prev[i]) / 2.0;
-        //    global_traction += (deg[i]+1.0) / traction_i;
-        //}[
-        let global_traction = 1.0;
+        let mut global_traction = 0.0;
+        for i in 0..n {
+            let traction_i = distance (&forces[i], &forces_prev[i]) / 2.0;
+            global_traction += (deg[i]+1.0) / traction_i;
+        }
+        //let global_traction = 1.0;
         let global_speed = args.tolerate * global_traction / global_swing;
 
         // TODO: parallelize here
@@ -242,6 +258,7 @@ pub fn force_atlas_multilevel(
             }
         }
 
+        // TODO: only use internal here?
         let mut deg = vec![0.0; n];
         if args.use_weights {
             for i in 0..n {

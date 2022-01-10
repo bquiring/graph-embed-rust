@@ -38,28 +38,8 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
     let duration = start.elapsed();
     println!("input time elapsed: {:?}", duration);
 
-
     assert_eq!(A.nrows(), A.ncols());
     let n = A.nrows();
-
-    let mut rng = rand::thread_rng();
-    let dist = Uniform::from(-1.0..1.0);
-    let mut rand_elems = Vec::with_capacity(n * dim);
-    rand_elems.extend((0..n * dim).map(|_| rng.sample(&dist)));
-    //let mut coords = DMatrix::from_vec(n, dim, rand_elems);
-    //let mut coords = Grid::from_vec(n, dim, rand_elems);
-    let mut coords = vec![vec![rng.sample(&dist); dim]; n];
-    for i in 0..n {
-        for k in 0..dim {
-            coords[i][k] = rng.sample(&dist);
-        }
-    }
-
-    //let start = Instant::now();
-    //force_atlas(&A, dim, 1000, &mut coords, &ForceAtlasArgs::default());
-    ////coords = coords.normalize();
-    //let duration = start.elapsed();
-    //println!("force atlas time elapsed: {:?}", duration);
 
     let start = Instant::now();
     let levels = louvain(&A, 0.000001);
@@ -69,7 +49,7 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
     let mut PTs = Vec::new();
     println!("Level {:?} has {:?} vertices", 0, A.nrows());
     As.push (A);
-    let partial = 2;
+    let partial = 1;
     for i in 0..levels.len().min(partial) {
         let level = &levels[i];
         let PT = make_PT(level);
@@ -103,15 +83,24 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
         // print #vertices then #partition levels
         writeln!(part_file, "{} {}", n, k).unwrap();
         // print the partitions
-        for level in levels.iter().take(k) {
+        for PT in PTs.iter().take(k) {
             // print the size of each partition
-            writeln!(part_file, "{}", level.num_comm()).unwrap();
-            for comm in 0..level.num_comm() {
-                for node in level.iter().filter(|(_, c)| *c == comm).map(|(n, _)| n) {
-                    write!(part_file, "{} ", node).unwrap();
+            writeln!(part_file, "{}", PT.nrows()).unwrap();
+            let PT_I = PT.row_offsets();
+            let PT_J = PT.col_indices();
+            for a in 0..PT.nrows() {
+                for index in PT_I[a]..PT_I[a+1] {
+                    let i = PT_J[index];
+                    write!(part_file, "{} ", i).unwrap();
                 }
                 writeln!(part_file).unwrap();
             }
+            //for comm in 0..level.num_comm() {
+            //    for node in level.iter().filter(|(_, c)| *c == comm).map(|(n, _)| n) {
+            //        write!(part_file, "{} ", node).unwrap();
+            //    }
+            //    writeln!(part_file).unwrap();
+            //}
         }
 
         // for comm in 0..level.num_comm() {
@@ -125,12 +114,13 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
         println!("partition time elapsed: {:?}", duration);
     }
 
+    let scale = 10.0;
     let coords_path = graph_path.with_extension("coords");
     {
         let mut coords_file = File::create(&coords_path).unwrap();
         for i in 0..n {
             for k in 0..dim {
-                write!(coords_file, "{} ", coords[i][k]).unwrap();
+                write!(coords_file, "{} ", scale * coords[i][k]).unwrap();
             }
             writeln!(coords_file).unwrap();
         }
@@ -139,11 +129,12 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
     let plot_path = graph_path.with_extension("plot");
 
     println!(
-        "python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {}",
+        "python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {} {}",
         graph_path.to_str().unwrap(),
         part_path.to_str().unwrap(),
         coords_path.to_str().unwrap(),
-        plot_path.to_str().unwrap()
+        plot_path.to_str().unwrap(),
+        if zero_indexed {""} else {"--not-zero-indexed"}
     );
 
     let run_command = true;
@@ -154,6 +145,7 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
                    "-part", part_path.to_str().unwrap(),
                    "-coords", coords_path.to_str().unwrap(),
                    "-o", plot_path.to_str().unwrap(),
+                   if zero_indexed {""} else {"--not-zero-indexed"},
             ])
             .output()
             .expect("failed to execute process");

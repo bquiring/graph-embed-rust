@@ -56,7 +56,6 @@ edges = [(int(line.strip().split(" ")[0]), int(line.strip().split(" ")[1])) for 
 if args.not_zero_indexed:
     edges = [(i-1, j-1) for (i, j) in edges]
 
-print(args.not_zero_indexed)
 for (i, j) in edges:
     assert (i < n)
     assert (j < n)
@@ -72,7 +71,7 @@ def initialColors(N):
     for i in range(len(colors_list)):
         colors_list[i] = [colors_list[i][0] / 256.0, colors_list[i][1] / 256.0, colors_list[i][2] / 256.0]
     colors = []
-    print("requesting", N, "have", len(colors_list))
+    # print("requesting", N, "have", len(colors_list))
     for i in range(N):
         colors.append(colors_list[i % len(colors_list)])
     return colors
