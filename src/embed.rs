@@ -14,6 +14,9 @@ pub fn computeRadii (A : &CsrMatrix<f64>,
 
     let n = A.nrows();
     assert!(n == radii.len());
+    for i in 0..n {
+        radii[i] = -1.0;
+    }
 
     let mut times = Vec::new();
     let A_I = A.row_offsets();
@@ -21,60 +24,101 @@ pub fn computeRadii (A : &CsrMatrix<f64>,
     let A_D = A.values();
 
     // TODO: factor in weights!
+    let mut rate = vec![0.0; n];
+    for i in 0..n {
+        let mut found = false;
+        for edge in A_I[i]..A_I[i+1] {
+            let j = A_J[edge];
+            if i == j {
+                rate[i] = A_D[edge];
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            rate[i] = 1.0;
+        }
+    }
 
     for i in 0..n {
         if doAll {
             for j in i+1..n {
                 let distance_ij = distance(&coords[i], &coords[j]);
-                times.push((-distance_ij/2.0, i, j));
+                times.push((distance_ij/(rate[i] + rate[j]), i, j));
             }
         } else {
             for edge in A_I[i]..A_I[i+1] {
                 let j = A_J[edge];
                 if i < j {
                     let distance_ij = distance(&coords[i], &coords[j]);
-                    times.push((-distance_ij/2.0, i, j));
+                    times.push((distance_ij/(rate[i] + rate[j]), i, j));
                 }
             }
         }
     }
     // FIXME: sort `times` based on the first component
-    times.sort_by(|(t1, _, _), (t2, _, _)| t1.partial_cmp(t2).unwrap());
+    times.sort_by(|(t1, _, _), (t2, _, _)| t2.partial_cmp(t1).unwrap());
 
     let mut assignedCount = 0;
     while assignedCount < n && !times.is_empty() {
         let (time_ij, i, j) = times.pop().unwrap();
-        let distance_ij = -time_ij;
         if radii[i] <= 0.0 && radii[j] > 0.0 { // only i is live
+            let distance_ij = time_ij * rate[i];
             radii[i] = distance_ij;
             for r in 0..times.len() {
-                let (_, i_prime, j_prime) = times[r];
+                let (time_ij_prime, i_prime, j_prime) = times[r];
                 if i_prime == i || j_prime == i {
-                    times[r].0 = -(2.0 * -times[r].0) - (-time_ij);
+                    let (same, other) = if i_prime == i {
+                        (i_prime, j_prime)
+                    } else {
+                        (j_prime, i_prime)
+                    };
+                    // this is not the case if both are dead, but in that case we don't care 
+                    let distance_ij_prime = time_ij_prime * (rate[other] + rate[same]);
+                    let distance_part = distance_ij * rate[same] / (rate[i] + rate[j]);
+                    times[r].0 = (distance_ij_prime - distance_part) / rate[other];
                 }
             }
-            times.sort_by(|(t1, _, _), (t2, _, _)| t1.partial_cmp(t2).unwrap());
+            times.sort_by(|(t1, _, _), (t2, _, _)| t2.partial_cmp(t1).unwrap());
             assignedCount += 1;
         } else if radii[i] > 0.0 && radii[j] <= 0.0 { // only j is live
+            let distance_ij = time_ij * rate[j];
             radii[j] = distance_ij;
             for r in 0..times.len() {
-                let (_, i_prime, j_prime) = times[r];
+                let (time_ij_prime, i_prime, j_prime) = times[r];
                 if i_prime == j || j_prime == j {
-                    times[r].0 = -(2.0 * -times[r].0) - (-time_ij);
+                    let (same, other) = if i_prime == j {
+                        (i_prime, j_prime)
+                    } else {
+                        (j_prime, i_prime)
+                    };
+                    // this is not the case if both are dead, but in that case we don't care 
+                    let distance_ij_prime = time_ij_prime * (rate[other] + rate[same]);
+                    let distance_part = distance_ij * rate[same] / (rate[i] + rate[j]);
+                    times[r].0 = (distance_ij_prime - distance_part) / rate[other];
                 }
             }
-            times.sort_by(|(t1, _, _), (t2, _, _)| t1.partial_cmp(t2).unwrap());
+            times.sort_by(|(t1, _, _), (t2, _, _)| t2.partial_cmp(t1).unwrap());
             assignedCount += 1;
         } else if radii[i] <= 0.0 && radii[j] <= 0.0 { // both are live
-            radii[i] = distance_ij / 2.0;
-            radii[j] = distance_ij / 2.0;
+            let distance_ij = time_ij * (rate[i] + rate[j]);
+            radii[i] = distance_ij * rate[i] / (rate[i] + rate[j]);
+            radii[j] = distance_ij * rate[j] / (rate[i] + rate[j]);
             for r in 0..times.len() {
-                let (_, i_prime, j_prime) = times[r];
+                let (time_ij_prime, i_prime, j_prime) = times[r];
                 if i_prime == i || j_prime == i || i_prime == j || j_prime == j {
-                    times[r].0 = -(2.0 * -times[r].0) - (-time_ij);
+                    let (same, other) = if i_prime == i || i_prime == j {
+                        (i_prime, j_prime)
+                    } else {
+                        (j_prime, i_prime)
+                    };
+                    // this is not the case if both are dead, but in that case we don't care 
+                    let distance_ij_prime = time_ij_prime * (rate[other] + rate[same]);
+                    let distance_part = distance_ij * rate[same] / (rate[i] + rate[j]);
+                    times[r].0 = (distance_ij_prime - distance_part) / rate[other];
                 }
             }
-            times.sort_by(|(t1, _, _), (t2, _, _)| t1.partial_cmp(t2).unwrap());
+            times.sort_by(|(t1, _, _), (t2, _, _)| t2.partial_cmp(t1).unwrap());
             assignedCount += 1;
             assignedCount += 1;
         } else { // both are dead
