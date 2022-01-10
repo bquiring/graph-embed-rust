@@ -1,5 +1,6 @@
 use nalgebra_sparse::{coo::CooMatrix, csr::CsrMatrix};
 use rand::seq::SliceRandom;
+use rand::{distributions::Uniform, Rng};
 use std::{collections::HashMap, ops::Range};
 
 // Uses the Louvain method, https://arxiv.org/abs/0803.0476
@@ -169,7 +170,13 @@ impl Community {
         let mut new_mod = self.modularity();
         let mut iter = 0;
         // println!("next level");
+        let dist = Uniform::from(0.0..1.0);
+        let threshold : f64 = (self.size as f64).log(2.0) / (self.size as f64);
         loop {
+            // reorder with probability (log n/n)
+            if rng.sample(&dist) < threshold {
+                rand_order.shuffle(&mut rng);
+            }
             // println!("loop iter = {}", iter);
             iter += 1;
             let cur_mod = new_mod;
