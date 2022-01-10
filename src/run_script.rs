@@ -1,34 +1,94 @@
-use graph_embed_rust::{community::*, force_atlas::*, grid::Grid, io::*};
+use graph_embed_rust::{community::*, force_atlas::*, grid::Grid, io::*, embed::*};
 //use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
+fn make_PT (level : &Level) -> CsrMatrix<f64> {
+    let n = level.num_vert();
+    let m = level.num_comm();
+    // Form P transpose
+    let mut PT_I = vec![0; m+1];
+    let mut PT_J = vec![0; n];
+    let PT_D = vec![1.0; n];
+    for a in 0..m {
+        PT_I[a] = level.comm_size(a).unwrap();
+    }
+    for a in 0..m {
+        PT_I[a+1] += PT_I[a];
+    }
+    let mut count = vec![0; m];
+    for i in 0..n {
+        let a = level.comm_of (i).unwrap();
+        PT_J[PT_I[a] + count[a]] = i;
+        count[a] += 1;
+    }
+    let PT : CsrMatrix<f64> = CsrMatrix::try_from_csr_data (m, n, PT_I, PT_J, PT_D).unwrap();
+    PT
+}
+
 pub fn run_script(graph_path: &Path, dim: usize) {
     let mm = MatrixMarket::read_from_path(graph_path).unwrap();
     let coo = mm.to_sym_coo();
-    let m = CsrMatrix::from(&coo);
+    let A = CsrMatrix::from(&coo);
 
-    assert_eq!(m.nrows(), m.ncols());
-    let n = m.nrows();
+    assert_eq!(A.nrows(), A.ncols());
+    let n = A.nrows();
 
     let mut rng = rand::thread_rng();
     let dist = Uniform::from(-1.0..1.0);
     let mut rand_elems = Vec::with_capacity(n * dim);
     rand_elems.extend((0..n * dim).map(|_| rng.sample(&dist)));
     //let mut coords = DMatrix::from_vec(n, dim, rand_elems);
-    let mut coords = Grid::from_vec(n, dim, rand_elems);
+    //let mut coords = Grid::from_vec(n, dim, rand_elems);
+    let mut coords = vec![vec![rng.sample(&dist); dim]; n];
+    for i in 0..n {
+        for k in 0..dim {
+            coords[i][k] = rng.sample(&dist);
+        }
+    }
 
     let start = Instant::now();
-    force_atlas(&m, dim, 1, &mut coords, &ForceAtlasArgs::default());
+    force_atlas(&A, dim, 1000, &mut coords, &ForceAtlasArgs::default());
     //coords = coords.normalize();
     let duration = start.elapsed();
     println!("force atlas time elapsed: {:?}", duration);
 
     let start = Instant::now();
-    let levels = louvain(&m, 0.000001);
+    let levels = louvain(&A, 0.000001);
     let duration = start.elapsed();
     println!("community time elapsed: {:?}", duration);
+
+    
+    let mut radii : Vec<f64> = vec![0.0; n];
+    let start = Instant::now();
+    computeRadii (&A, &coords, &mut radii);
+    let duration = start.elapsed();
+    println!("Radii time elapsed: {:?}", duration);
+
+    
+    let mut As = Vec::new();
+    let mut PTs = Vec::new();
+    As.push (A);
+    // for i in 0..levels.len() {
+    //     let level = &levels[i];
+    //     let PT = make_PT (level);
+    //     let A = &As[i];
+    //     
+    //     // form the quotient graph
+    //     let Ac = PT * A * PT.transpose();
+    //     // remember these
+    //     PTs.push (PT);
+    //     As.push (Ac);
+    // }
+    let coords = embedMultilevel (&As, &PTs, dim,
+                                  |A, dim, coords| {
+                                      force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
+                                  },
+                                  |A, dim, coords, PT| {
+                                      force_atlas_multilevel (A, dim, 1000, coords, &PT, &ForceAtlasArgs::default());
+                                  });
+    
 
     let part_path = graph_path.with_extension("part");
     {
@@ -65,7 +125,7 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         let mut coords_file = File::create(&coords_path).unwrap();
         for i in 0..n {
             for k in 0..dim {
-                write!(coords_file, "{} ", coords[(i, k)]).unwrap();
+                write!(coords_file, "{} ", coords[i][k]).unwrap();
             }
             writeln!(coords_file).unwrap();
         }
@@ -82,16 +142,11 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     );
 
     let output = Command::new("python3")
-        .args([
-            "scripts/plot-graph.py",
-            "-graph",
-            graph_path.to_str().unwrap(),
-            "-part",
-            part_path.to_str().unwrap(),
-            "-coords",
-            coords_path.to_str().unwrap(),
-            "-o",
-            plot_path.to_str().unwrap(),
+        .args(["scripts/plot-graph.py",
+               "-graph", graph_path.to_str().unwrap(),
+               "-part", part_path.to_str().unwrap(),
+               "-coords", coords_path.to_str().unwrap(),
+               "-o", plot_path.to_str().unwrap(),
         ])
         .output()
         .expect("failed to execute process");

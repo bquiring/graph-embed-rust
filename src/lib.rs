@@ -4,3 +4,4 @@ pub mod force_atlas;
 pub mod grid;
 pub mod io;
 pub mod util;
+pub mod embed;

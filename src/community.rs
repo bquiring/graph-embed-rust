@@ -42,6 +42,10 @@ impl Level {
         self.comm_sizes.len()
     }
 
+    pub fn num_vert (&self) -> usize {
+        self.node_to_comm.len()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
         self.node_to_comm.iter().enumerate().map(|(n, &c)| (n, c))
     }
