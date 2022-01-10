@@ -160,7 +160,7 @@ pub fn force_atlas(
             for (k, coord) in row.iter_mut().enumerate() {
                 let totalF_i = magnitude(&forces[i]);
                 let speed_i = args.ks * global_speed / (1.0 + global_speed * swing[i].sqrt());
-                *coord += forces[i][k] * speed_i.min(args.ksmax / totalF_i);
+                *coord += forces[(i, k)] * speed_i.min(args.ksmax / totalF_i);
             }
         });
          */
