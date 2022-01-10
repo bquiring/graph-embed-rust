@@ -1,31 +1,31 @@
-use graph_embed_rust::{community::*, force_atlas::*, grid::Grid, io::*, embed::*};
+use graph_embed_rust::{community::*, embed::*, force_atlas::*, grid::Grid, io::*};
 //use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
-fn make_PT (level : &Level) -> CsrMatrix<f64> {
+fn make_PT(level: &Level) -> CsrMatrix<f64> {
     let n = level.num_vert();
     let m = level.num_comm();
     // Form P transpose
-    let mut PT_I = vec![0; m+1];
+    let mut PT_I = vec![0; m + 1];
     let mut PT_J = vec![0; n];
     let PT_D = vec![1.0; n];
     for a in 0..m {
-        PT_I[a+1] = level.comm_size(a).unwrap();
+        PT_I[a + 1] = level.comm_size(a).unwrap();
     }
     for a in 0..m {
-        PT_I[a+1] += PT_I[a];
+        PT_I[a + 1] += PT_I[a];
     }
     let mut count = vec![0; m];
     for i in 0..n {
-        let a = level.comm_of (i).unwrap();
+        let a = level.comm_of(i).unwrap();
         // println! ("{:?} {:?}", a, m);
-        assert! (count[a] < PT_I[a+1] - PT_I[a]);
+        assert!(count[a] < PT_I[a + 1] - PT_I[a]);
         PT_J[PT_I[a] + count[a]] = i;
         count[a] += 1;
     }
-    let PT : CsrMatrix<f64> = CsrMatrix::try_from_csr_data (m, n, PT_I, PT_J, PT_D).unwrap();
+    let PT: CsrMatrix<f64> = CsrMatrix::try_from_csr_data(m, n, PT_I, PT_J, PT_D).unwrap();
     PT
 }
 
@@ -61,29 +61,41 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     let duration = start.elapsed();
     println!("community time elapsed: {:?}", duration);
 
-    
     let mut As = Vec::new();
     let mut PTs = Vec::new();
-    As.push (A);
-    for i in 0..1 /* levels.len() */ {
+    As.push(A);
+    for i in 0..1
+    /* levels.len() */
+    {
         let level = &levels[i];
-        let PT = make_PT (level);
+        let PT = make_PT(level);
         let A = &As[i];
-        
+
         // form the quotient graph
         let Ac = &PT * A * PT.transpose();
         // remember these
-        PTs.push (PT);
-        As.push (Ac);
+        PTs.push(PT);
+        As.push(Ac);
     }
-    let coords = embedMultilevel (&As, &PTs, dim,
-                                  |A, dim, coords| {
-                                      force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
-                                  },
-                                  |A, dim, coords, coords_Ac, PT| {
-                                      force_atlas_multilevel (A, dim, 1000, coords, coords_Ac, &PT, &ForceAtlasArgs::default());
-                                  });
-    
+    let coords = embedMultilevel(
+        &As,
+        &PTs,
+        dim,
+        |A, dim, coords| {
+            force_atlas(A, dim, 1000, coords, &ForceAtlasArgs::default());
+        },
+        |A, dim, coords, coords_Ac, PT| {
+            force_atlas_multilevel(
+                A,
+                dim,
+                1000,
+                coords,
+                coords_Ac,
+                PT,
+                &ForceAtlasArgs::default(),
+            );
+        },
+    );
 
     let part_path = graph_path.with_extension("part");
     {
@@ -137,11 +149,16 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     );
 
     let output = Command::new("python3")
-        .args(["scripts/plot-graph.py",
-               "-graph", graph_path.to_str().unwrap(),
-               "-part", part_path.to_str().unwrap(),
-               "-coords", coords_path.to_str().unwrap(),
-               "-o", plot_path.to_str().unwrap(),
+        .args([
+            "scripts/plot-graph.py",
+            "-graph",
+            graph_path.to_str().unwrap(),
+            "-part",
+            part_path.to_str().unwrap(),
+            "-coords",
+            coords_path.to_str().unwrap(),
+            "-o",
+            plot_path.to_str().unwrap(),
         ])
         .output()
         .expect("failed to execute process");
