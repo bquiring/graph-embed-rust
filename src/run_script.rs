@@ -29,10 +29,14 @@ fn make_PT (level : &Level) -> CsrMatrix<f64> {
     PT
 }
 
-pub fn run_script(graph_path: &Path, dim: usize) {
-    let mm = MatrixMarket::read_from_path(graph_path).unwrap();
+pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
+    let start = Instant::now();
+    let mm = MatrixMarket::read_from_path(graph_path, zero_indexed).unwrap();
     let coo = mm.to_sym_coo();
     let A = CsrMatrix::from(&coo);
+    let duration = start.elapsed();
+    println!("input time elapsed: {:?}", duration);
+
 
     assert_eq!(A.nrows(), A.ncols());
     let n = A.nrows();
@@ -50,11 +54,11 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         }
     }
 
-    let start = Instant::now();
-    force_atlas(&A, dim, 1000, &mut coords, &ForceAtlasArgs::default());
-    //coords = coords.normalize();
-    let duration = start.elapsed();
-    println!("force atlas time elapsed: {:?}", duration);
+    //let start = Instant::now();
+    //force_atlas(&A, dim, 1000, &mut coords, &ForceAtlasArgs::default());
+    ////coords = coords.normalize();
+    //let duration = start.elapsed();
+    //println!("force atlas time elapsed: {:?}", duration);
 
     let start = Instant::now();
     let levels = louvain(&A, 0.000001);
@@ -64,18 +68,24 @@ pub fn run_script(graph_path: &Path, dim: usize) {
     
     let mut As = Vec::new();
     let mut PTs = Vec::new();
+    println!("Level {:?} has {:?} vertices", 0, A.nrows());
     As.push (A);
-    for i in 0..1 /* levels.len() */ {
+    let partial = 2;
+    for i in 0..levels.len().min(partial) {
         let level = &levels[i];
         let PT = make_PT (level);
         let A = &As[i];
         
         // form the quotient graph
         let Ac = &PT * A * PT.transpose();
+
+        println!("Level {:?} has {:?} vertices", i+1, Ac.nrows());
         // remember these
         PTs.push (PT);
         As.push (Ac);
     }
+
+    let start = Instant::now();
     let coords = embedMultilevel (&As, &PTs, dim,
                                   |A, dim, coords| {
                                       force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
@@ -83,7 +93,8 @@ pub fn run_script(graph_path: &Path, dim: usize) {
                                   |A, dim, coords, coords_Ac, PT| {
                                       force_atlas_multilevel (A, dim, 1000, coords, coords_Ac, &PT, &ForceAtlasArgs::default());
                                   });
-    
+    let duration = start.elapsed();
+    println!("embedding time elapsed: {:?}", duration);
 
     let part_path = graph_path.with_extension("part");
     {
@@ -136,15 +147,18 @@ pub fn run_script(graph_path: &Path, dim: usize) {
         plot_path.to_str().unwrap()
     );
 
-    let output = Command::new("python3")
-        .args(["scripts/plot-graph.py",
-               "-graph", graph_path.to_str().unwrap(),
-               "-part", part_path.to_str().unwrap(),
-               "-coords", coords_path.to_str().unwrap(),
-               "-o", plot_path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("failed to execute process");
+    let run_command = true;
+    if run_command {
+        let output = Command::new("python3")
+            .args(["scripts/plot-graph.py",
+                   "-graph", graph_path.to_str().unwrap(),
+                   "-part", part_path.to_str().unwrap(),
+                   "-coords", coords_path.to_str().unwrap(),
+                   "-o", plot_path.to_str().unwrap(),
+            ])
+            .output()
+            .expect("failed to execute process");
 
-    println!("{:?}", output);
+        println!("{:?}", output);
+    }
 }

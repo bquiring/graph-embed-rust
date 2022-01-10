@@ -168,9 +168,9 @@ impl Community {
         let mut improved = false;
         let mut new_mod = self.modularity();
         let mut iter = 0;
-        println!("next level");
+        // println!("next level");
         loop {
-            println!("loop iter = {}", iter);
+            // println!("loop iter = {}", iter);
             iter += 1;
             let cur_mod = new_mod;
             let mut num_moves = 0;
