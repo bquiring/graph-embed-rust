@@ -1,4 +1,4 @@
-use graph_embed_rust::{community::*, embed::*, force_atlas::*, grid::Grid, io::*};
+use graph_embed_rust::{community::*, embed::*, force_atlas::*, io::*};
 //use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
 use rand::{distributions::Uniform, Rng};

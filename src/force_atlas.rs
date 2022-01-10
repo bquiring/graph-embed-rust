@@ -1,4 +1,3 @@
-use crate::grid::Grid;
 use crate::util::*;
 //use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
@@ -188,7 +187,7 @@ pub fn force_atlas_multilevel(
     //coords: &mut Grid<f64>,
     //coords_Ac: &mut Grid<f64>,
     coords: &mut Vec<Vec<f64>>,
-    coords_Ac: &Vec<Vec<f64>>,
+    coords_Ac: &[Vec<f64>],
     PT: &CsrMatrix<f64>,
     args: &ForceAtlasArgs,
 ) {
@@ -210,10 +209,10 @@ pub fn force_atlas_multilevel(
     let PT_I = PT.row_offsets();
     let PT_J = PT.col_indices();
 
-    let mut commOf = vec![0; n];
+    let mut comm_of = vec![0; n];
     for a in 0..m {
         for c in PT_I[a]..PT_I[a + 1] {
-            commOf[PT_J[c]] = a
+            comm_of[PT_J[c]] = a
         }
     }
 
@@ -279,7 +278,7 @@ pub fn force_atlas_multilevel(
                 let mag = magnitude(&coords_loc[i]);
                 for k2 in I[local_to_global[i]]..I[local_to_global[i] + 1] {
                     let j = J[k2];
-                    if a == commOf[j] {
+                    if a == comm_of[j] {
                         let j = global_to_local[j];
                         let dis_ij = distance(&coords_loc[i], &coords_loc[j]).max(epsilon);
                         let mut fa_ij = if args.linlog { dis_ij.log2() } else { dis_ij };
@@ -304,11 +303,11 @@ pub fn force_atlas_multilevel(
                         }
                     } else {
                         let pull = 100.0;
-                        let dis_ij = distance(&coords_Ac[a], &coords_Ac[commOf[j]]).max(epsilon);
+                        let dis_ij = distance(&coords_Ac[a], &coords_Ac[comm_of[j]]).max(epsilon);
                         let Fo_ij = pull;
 
                         for k in 0..dim {
-                            let direction = (coords_Ac[commOf[j]][k] - coords_Ac[a][k]) / dis_ij;
+                            let direction = (coords_Ac[comm_of[j]][k] - coords_Ac[a][k]) / dis_ij;
                             let Fo_sum = direction * Fo_ij / mag;
                             force_i[k] += Fo_sum;
                         }
