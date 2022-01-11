@@ -43,9 +43,10 @@ partfile = open(partpath)
 n, K = partfile.readline().strip().split(" ")
 n = int(n)
 K = int(K)
-partition_sizes = [int(i) for i in partfile.readline().strip().split(" ")]
+partition_sizes = []
 partitions = []
 for i in range(K):
+    partition_sizes.append (int(partfile.readline().strip()))
     partition = []
     for j in range(partition_sizes[i]):
         partition.append([int(i) for i in partfile.readline().strip().split(" ")])

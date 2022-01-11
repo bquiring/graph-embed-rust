@@ -78,12 +78,12 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
     let part_path = graph_path.with_extension("part");
     {
         let start = Instant::now();
-        let k = 1; // #partition level
+        let k = PTs.len();
         let mut part_file = File::create(&part_path).unwrap();
         // print #vertices then #partition levels
         writeln!(part_file, "{} {}", n, k).unwrap();
         // print the partitions
-        for PT in PTs.iter().take(k) {
+        for PT in PTs.iter() {
             // print the size of each partition
             writeln!(part_file, "{}", PT.nrows()).unwrap();
             let PT_I = PT.row_offsets();
