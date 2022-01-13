@@ -7,14 +7,14 @@ fn ca_netscience() {
     println!("running ca-netscience example...");
     let path = Path::new("res/ca-netscience/ca-netscience.mtx");
     let zero_indexed = false;
-    run_script::run_script(path, zero_indexed, 2);
+    run_script::run_script(path, zero_indexed, 2, true);
 }
 
 fn road_usroads() {
     println!("running road-usroads example...");
     let path = Path::new("res/road-usroads/road-usroads.mtx");
     let zero_indexed = false;
-    run_script::run_script(path, zero_indexed, 2);
+    run_script::run_script(path, zero_indexed, 2, true);
 }
 
 fn main() {

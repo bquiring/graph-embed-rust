@@ -1,6 +1,5 @@
 use graph_embed_rust::{community::*, embed::*, force_atlas::*, io::*};
 use nalgebra_sparse::csr::CsrMatrix;
-use rand::{distributions::Uniform, Rng};
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
 fn make_PT(level: &Level) -> CsrMatrix<f64> {
@@ -30,7 +29,7 @@ fn make_PT(level: &Level) -> CsrMatrix<f64> {
     CsrMatrix::try_from_csr_data(m, n, PT_I, PT_J, PT_D).unwrap()
 }
 
-pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
+pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool) {
     let start = Instant::now();
     let mm = MatrixMarket::read_from_path(graph_path, zero_indexed).unwrap();
     let coo = mm.to_sym_coo();
@@ -48,7 +47,7 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
     let mut As = Vec::new();
     let mut PTs = Vec::new();
     println!("Level {:?} has {:?} vertices", 0, A.nrows());
-    As.push (A);
+    As.push(A);
     let partial = 1;
     for i in 0..levels.len().min(partial) {
         let level = &levels[i];
@@ -58,22 +57,33 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
         // form the quotient graph
         let Ac = &PT * A * PT.transpose();
 
-        println!("Level {:?} has {:?} vertices", i+1, Ac.nrows());
+        println!("Level {:?} has {:?} vertices", i + 1, Ac.nrows());
         // remember these
         PTs.push(PT);
         As.push(Ac);
     }
 
     let start = Instant::now();
-    let coords = embed_multilevel (&As, &PTs, dim,
-                                   |A, dim, coords| {
-                                       force_atlas (A, dim, 1000, coords, &ForceAtlasArgs::default());
-                                   },
-                                   |A, dim, coords, coords_Ac, PT| {
-                                       force_atlas_multilevel (A, dim, 1000, coords, coords_Ac, &PT, &ForceAtlasArgs::default());
-                                   });
-    let duration = start.elapsed();
-    println!("embedding time elapsed: {:?}", duration);
+    let coords = embed_multilevel(
+        &As,
+        &PTs,
+        dim,
+        |A, dim, coords| {
+            force_atlas(A, dim, 1000, coords, &ForceAtlasArgs::default());
+        },
+        |A, dim, coords, coords_Ac, PT| {
+            force_atlas_multilevel(
+                A,
+                dim,
+                1000,
+                coords,
+                coords_Ac,
+                &PT,
+                &ForceAtlasArgs::default(),
+            );
+        },
+    );
+    println!("embedding time elapsed: {:?}", start.elapsed());
 
     let part_path = graph_path.with_extension("part");
     {
@@ -89,7 +99,7 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
             let PT_I = PT.row_offsets();
             let PT_J = PT.col_indices();
             for a in 0..PT.nrows() {
-                for index in PT_I[a]..PT_I[a+1] {
+                for index in PT_I[a]..PT_I[a + 1] {
                     let i = PT_J[index];
                     write!(part_file, "{} ", i).unwrap();
                 }
@@ -134,18 +144,30 @@ pub fn run_script(graph_path: &Path, zero_indexed : bool, dim: usize) {
         part_path.to_str().unwrap(),
         coords_path.to_str().unwrap(),
         plot_path.to_str().unwrap(),
-        if zero_indexed {""} else {"--not-zero-indexed"}
+        if zero_indexed {
+            ""
+        } else {
+            "--not-zero-indexed"
+        }
     );
 
-    let run_command = true;
-    if run_command {
+    if plot {
         let output = Command::new("python3")
-            .args(["scripts/plot-graph.py",
-                   "-graph", graph_path.to_str().unwrap(),
-                   "-part", part_path.to_str().unwrap(),
-                   "-coords", coords_path.to_str().unwrap(),
-                   "-o", plot_path.to_str().unwrap(),
-                   if zero_indexed {""} else {"--not-zero-indexed"},
+            .args([
+                "scripts/plot-graph.py",
+                "-graph",
+                graph_path.to_str().unwrap(),
+                "-part",
+                part_path.to_str().unwrap(),
+                "-coords",
+                coords_path.to_str().unwrap(),
+                "-o",
+                plot_path.to_str().unwrap(),
+                if zero_indexed {
+                    ""
+                } else {
+                    "--not-zero-indexed"
+                },
             ])
             .output()
             .expect("failed to execute process");

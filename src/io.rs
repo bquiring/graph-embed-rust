@@ -39,12 +39,12 @@ impl From<ParseError> for MmError {
 }
 
 impl MatrixMarket {
-    pub fn read_from_path(path: &Path, zero_indexed : bool) -> Result<Self, MmError> {
+    pub fn read_from_path(path: &Path, zero_indexed: bool) -> Result<Self, MmError> {
         let f = File::open(path)?;
         parse(&mut BufReader::new(f), zero_indexed)
     }
 
-    pub fn read_from_string(s: &str, zero_indexed : bool) -> Result<Self, MmError> {
+    pub fn read_from_string(s: &str, zero_indexed: bool) -> Result<Self, MmError> {
         parse(&mut s.as_bytes(), zero_indexed)
     }
 
@@ -61,7 +61,7 @@ impl MatrixMarket {
     }
 }
 
-fn parse<R: BufRead>(reader: &mut R, zero_indexed : bool) -> Result<MatrixMarket, MmError> {
+fn parse<R: BufRead>(reader: &mut R, zero_indexed: bool) -> Result<MatrixMarket, MmError> {
     let mut nrows = 0;
     let mut ncols = 0;
     let mut row_indices = Vec::new();
@@ -92,13 +92,17 @@ fn parse<R: BufRead>(reader: &mut R, zero_indexed : bool) -> Result<MatrixMarket
             .ok_or(ParseError::ExpectedValue)?
             .parse()
             .unwrap();
-        let (row, col) = if zero_indexed {(row, col)} else {(row-1, col-1)};
+        let (row, col) = if zero_indexed {
+            (row, col)
+        } else {
+            (row - 1, col - 1)
+        };
 
         row_indices.push(row);
         col_indices.push(col);
         values.push(value);
-        nrows = nrows.max(row+1);
-        ncols = ncols.max(col+1);
+        nrows = nrows.max(row + 1);
+        ncols = ncols.max(col + 1);
     }
     Ok(MatrixMarket {
         nrows,
