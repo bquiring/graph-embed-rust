@@ -93,8 +93,6 @@ fn parse<R: BufRead>(reader: &mut R, zero_indexed: bool) -> Result<MatrixMarket,
             .parse()
             .unwrap();
 
-        nrows = nrows.max(row + 1);
-        ncols = ncols.max(col + 1);
 
         let (row, col) = if zero_indexed {
             (row, col)
@@ -102,6 +100,8 @@ fn parse<R: BufRead>(reader: &mut R, zero_indexed: bool) -> Result<MatrixMarket,
             (row - 1, col - 1)
         };
 
+        nrows = nrows.max(row + 1);
+        ncols = ncols.max(col + 1);
         row_indices.push(row);
         col_indices.push(col);
         values.push(value);
