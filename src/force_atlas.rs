@@ -1,7 +1,6 @@
 use crate::util::*;
-//use nalgebra::base::DMatrix;
 use nalgebra_sparse::csr::CsrMatrix;
-use rand::{distributions::Uniform, Rng};
+use rand::{distributions::Uniform, rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 
 pub struct ForceAtlasArgs {
@@ -252,8 +251,8 @@ pub fn force_atlas_multilevel(
 
         let mut coords_loc = vec![vec![0.0; dim]; n]; //Grid::new(n, dim);
 
-        let mut rng = rand::thread_rng();
-        let dist = Uniform::from(-1.0..1.0);
+        let mut rng = SmallRng::from_entropy();
+        let dist: Uniform<f64> = Uniform::from(-1.0..1.0);
         for i in 0..n {
             for k in 0..dim {
                 coords_loc[i][k] = rng.sample(&dist);

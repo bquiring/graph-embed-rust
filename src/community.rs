@@ -1,5 +1,5 @@
 use nalgebra_sparse::{coo::CooMatrix, csr::CsrMatrix};
-use rand::{distributions::Uniform, seq::SliceRandom, Rng};
+use rand::{distributions::Uniform, rngs::SmallRng, seq::SliceRandom, Rng, SeedableRng};
 use std::{collections::HashMap, ops::Range};
 
 // Uses the Louvain method, https://arxiv.org/abs/0803.0476
@@ -177,9 +177,9 @@ impl Community {
     }
 
     fn next_level(&mut self) -> bool {
-        let dist = Uniform::from(0.0..1.0);
+        let dist: Uniform<f64> = Uniform::from(0.0..1.0);
         let threshold = (self.size as f64).log(2.0) / self.size as f64;
-        let mut rng = rand::thread_rng();
+        let mut rng = SmallRng::from_entropy();
         let mut rand_order: Vec<_> = (0..self.size).collect();
         rand_order.shuffle(&mut rng);
 

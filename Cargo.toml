@@ -4,9 +4,8 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-nalgebra = "0.29"
 nalgebra-sparse = "0.5"
-rand = "0.8.4"
+rand = { version = "0.8.4", features = ["getrandom", "small_rng"], default-features = false }
 rayon = "1.5.1"
 #ndarray = { version = "0.15.4", features = ["rayon"] }
 

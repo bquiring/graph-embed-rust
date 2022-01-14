@@ -93,7 +93,6 @@ fn parse<R: BufRead>(reader: &mut R, zero_indexed: bool) -> Result<MatrixMarket,
             .parse()
             .unwrap();
 
-
         let (row, col) = if zero_indexed {
             (row, col)
         } else {

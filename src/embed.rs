@@ -1,6 +1,6 @@
 use crate::util::*;
 use nalgebra_sparse::csr::CsrMatrix;
-use rand::{distributions::Uniform, Rng};
+use rand::{distributions::Uniform, rngs::SmallRng, Rng, SeedableRng};
 
 // the algorithm
 
@@ -181,8 +181,8 @@ where
     let mut radii_Ac = Vec::new();
 
     let n0 = As[As.len() - 1].nrows();
-    let mut rng = rand::thread_rng();
-    let dist = Uniform::from(-1.0..1.0);
+    let mut rng = SmallRng::from_entropy();
+    let dist: Uniform<f64> = Uniform::from(-1.0..1.0);
     //let mut rand_elems = Vec::with_capacity(n0 * dim);
     //rand_elems.extend((0..n0 * dim).map(|_| rng.sample(&dist)));
     //let mut coords_A = Grid::from_vec(n0, dim, rand_elems);
