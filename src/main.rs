@@ -18,6 +18,6 @@ fn road_usroads() {
 }
 
 fn main() {
-    ca_netscience();
-    //road_usroads();
+    //ca_netscience();
+    road_usroads();
 }

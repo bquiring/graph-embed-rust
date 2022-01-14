@@ -46,7 +46,7 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
     println!("community time elapsed: {:?}", start.elapsed());
 
     println!("---");
-    let partial = 1;
+    let partial = levels.len();
     let mut As = Vec::with_capacity(partial + 1);
     let mut PTs = Vec::with_capacity(partial + 1);
     println!("level 0 has {} vertices", A.nrows());
@@ -71,13 +71,13 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
         &PTs,
         dim,
         |A, dim, coords| {
-            force_atlas(A, dim, 1000, coords, &ForceAtlasArgs::default());
+            force_atlas(A, dim, 300, coords, &ForceAtlasArgs::default());
         },
         |A, dim, coords, coords_Ac, PT| {
             force_atlas_multilevel(
                 A,
                 dim,
-                1000,
+                50,
                 coords,
                 coords_Ac,
                 PT,
