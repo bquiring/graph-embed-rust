@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 nalgebra-sparse = "0.5"
-rand = { version = "0.8.4", features = ["getrandom", "small_rng"], default-features = false }
-rayon = "1.5.1"
+rand = { version = "0.8", features = ["getrandom", "small_rng"], default-features = false }
+rayon = "1.5"
 #ndarray = { version = "0.15.4", features = ["rayon"] }
 
 [profile.release]
