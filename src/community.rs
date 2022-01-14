@@ -54,13 +54,9 @@ impl Level {
 pub fn louvain(m: &CsrMatrix<f64>, min_mod: f64) -> Vec<Level> {
     let mut c = Community::new(m.clone(), min_mod);
     let mut levels = Vec::new();
-    loop {
-        if c.next_level() {
-            let level = c.partition();
-            levels.push(level);
-        } else {
-            break;
-        }
+    while c.next_level() {
+        let level = c.partition();
+        levels.push(level);
     }
     levels
 }
