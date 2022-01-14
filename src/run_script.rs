@@ -3,8 +3,9 @@ use nalgebra_sparse::csr::CsrMatrix;
 use std::{fs::File, io::Write, path::Path, process::Command, time::Instant};
 
 fn make_PT(level: &Level) -> CsrMatrix<f64> {
-    let n = level.num_vert();
+    let n = level.num_nodes();
     let m = level.num_comm();
+
     // Form P transpose
     let mut PT_I = vec![0; m + 1];
     let mut PT_J = vec![0; n];
@@ -30,12 +31,12 @@ fn make_PT(level: &Level) -> CsrMatrix<f64> {
 }
 
 pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool) {
+    println!("---");
     let start = Instant::now();
     let mm = MatrixMarket::read_from_path(graph_path, zero_indexed).unwrap();
     let coo = mm.to_sym_coo();
     let A = CsrMatrix::from(&coo);
-    let duration = start.elapsed();
-    println!("input time elapsed: {:?}", duration);
+    println!("input time elapsed: {:?}", start.elapsed());
 
     assert_eq!(A.nrows(), A.ncols());
     let n = A.nrows();
@@ -44,24 +45,25 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
     let levels = louvain(&A, 0.000001);
     println!("community time elapsed: {:?}", start.elapsed());
 
-    let mut As = Vec::new();
-    let mut PTs = Vec::new();
-    println!("Level {:?} has {:?} vertices", 0, A.nrows());
-    As.push(A);
+    println!("---");
     let partial = 1;
-    for i in 0..levels.len().min(partial) {
-        let level = &levels[i];
+    let mut As = Vec::with_capacity(partial + 1);
+    let mut PTs = Vec::with_capacity(partial + 1);
+    println!("level 0 has {} vertices", A.nrows());
+    As.push(A);
+    for (i, level) in levels.iter().enumerate().take(partial) {
         let PT = make_PT(level);
         let A = &As[i];
 
         // form the quotient graph
         let Ac = &PT * A * PT.transpose();
 
-        println!("Level {:?} has {:?} vertices", i + 1, Ac.nrows());
+        println!("level {} has {} vertices", i + 1, Ac.nrows());
         // remember these
         PTs.push(PT);
         As.push(Ac);
     }
+    println!("---");
 
     let start = Instant::now();
     let coords = embed_multilevel(
@@ -78,7 +80,7 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
                 1000,
                 coords,
                 coords_Ac,
-                &PT,
+                PT,
                 &ForceAtlasArgs::default(),
             );
         },
@@ -100,8 +102,7 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
             let PT_J = PT.col_indices();
             for a in 0..PT.nrows() {
                 for index in PT_I[a]..PT_I[a + 1] {
-                    let i = PT_J[index];
-                    write!(part_file, "{} ", i).unwrap();
+                    write!(part_file, "{} ", PT_J[index]).unwrap();
                 }
                 writeln!(part_file).unwrap();
             }
@@ -120,8 +121,7 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
         //     writeln!(part_file).unwrap();
         // }
         // writeln!(part_file).unwrap();
-        let duration = start.elapsed();
-        println!("partition time elapsed: {:?}", duration);
+        println!("partition time elapsed: {:?}", start.elapsed());
     }
 
     let scale = 10.0;
@@ -138,40 +138,30 @@ pub fn run_script(graph_path: &Path, zero_indexed: bool, dim: usize, plot: bool)
 
     let plot_path = graph_path.with_extension("plot");
 
-    println!(
-        "python3 scripts/plot-graph.py -graph {} -part {} -coords {} -o {} {}",
+    println!("---");
+    let mut args = vec![
+        "scripts/plot-graph.py",
+        "-graph",
         graph_path.to_str().unwrap(),
+        "-part",
         part_path.to_str().unwrap(),
+        "-coords",
         coords_path.to_str().unwrap(),
+        "-o",
         plot_path.to_str().unwrap(),
-        if zero_indexed {
-            ""
-        } else {
-            "--not-zero-indexed"
-        }
-    );
+    ];
 
+    if !zero_indexed {
+        args.push("--not-zero-indexed");
+    }
+
+    println!("python3 {}", args.join(" "));
+    println!("---");
     if plot {
         let output = Command::new("python3")
-            .args([
-                "scripts/plot-graph.py",
-                "-graph",
-                graph_path.to_str().unwrap(),
-                "-part",
-                part_path.to_str().unwrap(),
-                "-coords",
-                coords_path.to_str().unwrap(),
-                "-o",
-                plot_path.to_str().unwrap(),
-                if zero_indexed {
-                    ""
-                } else {
-                    "--not-zero-indexed"
-                },
-            ])
+            .args(args)
             .output()
             .expect("failed to execute process");
-
         println!("{:?}", output);
     }
 }

@@ -44,7 +44,7 @@ impl MatrixMarket {
         parse(&mut BufReader::new(f), zero_indexed)
     }
 
-    pub fn read_from_string(s: &str, zero_indexed: bool) -> Result<Self, MmError> {
+    pub fn read_from_str(s: &str, zero_indexed: bool) -> Result<Self, MmError> {
         parse(&mut s.as_bytes(), zero_indexed)
     }
 
@@ -92,6 +92,10 @@ fn parse<R: BufRead>(reader: &mut R, zero_indexed: bool) -> Result<MatrixMarket,
             .ok_or(ParseError::ExpectedValue)?
             .parse()
             .unwrap();
+
+        nrows = nrows.max(row + 1);
+        ncols = ncols.max(col + 1);
+
         let (row, col) = if zero_indexed {
             (row, col)
         } else {
@@ -101,8 +105,6 @@ fn parse<R: BufRead>(reader: &mut R, zero_indexed: bool) -> Result<MatrixMarket,
         row_indices.push(row);
         col_indices.push(col);
         values.push(value);
-        nrows = nrows.max(row + 1);
-        ncols = ncols.max(col + 1);
     }
     Ok(MatrixMarket {
         nrows,

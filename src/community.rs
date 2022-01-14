@@ -1,6 +1,5 @@
 use nalgebra_sparse::{coo::CooMatrix, csr::CsrMatrix};
-use rand::seq::SliceRandom;
-use rand::{distributions::Uniform, Rng};
+use rand::{distributions::Uniform, seq::SliceRandom, Rng};
 use std::{collections::HashMap, ops::Range};
 
 // Uses the Louvain method, https://arxiv.org/abs/0803.0476
@@ -13,8 +12,7 @@ pub struct Level {
 }
 
 impl Level {
-    fn new(node_to_comm: Vec<Option<usize>>) -> Self {
-        let node_to_comm: Vec<_> = node_to_comm.iter().flatten().copied().collect();
+    fn new(node_to_comm: Vec<usize>) -> Self {
         let comm_sizes = if let Some(&max) = node_to_comm.iter().max() {
             let num_comms = max + 1;
             let mut comm_sizes = vec![0; num_comms];
@@ -44,7 +42,7 @@ impl Level {
         self.comm_sizes.len()
     }
 
-    pub fn num_vert(&self) -> usize {
+    pub fn num_nodes(&self) -> usize {
         self.node_to_comm.len()
     }
 
@@ -54,17 +52,14 @@ impl Level {
 }
 
 pub fn louvain(m: &CsrMatrix<f64>, min_mod: f64) -> Vec<Level> {
-    let graph = Graph::from_csr(m.clone());
-    let mut c = Community::new(graph, min_mod);
+    let mut c = Community::new(m.clone(), min_mod);
     let mut levels = Vec::new();
-    let mut improved;
     loop {
-        improved = c.next_level();
-        let graph = c.partition_to_graph();
-        levels.push(Level::new(c.node_to_comm));
-        c = Community::new(graph, min_mod);
-
-        if !improved {
+        let improved = c.next_level();
+        let level = c.partition();
+        if improved {
+            levels.push(level);
+        } else {
             break;
         }
     }
@@ -85,7 +80,8 @@ struct Community {
 }
 
 impl Community {
-    fn new(graph: Graph, min_mod: f64) -> Self {
+    fn new(m: CsrMatrix<f64>, min_mod: f64) -> Self {
+        let graph = Graph::from_csr(m);
         let size = graph.num_nodes();
         let mut node_to_comm = Vec::with_capacity(size);
         let mut inside = Vec::with_capacity(size);
@@ -108,17 +104,43 @@ impl Community {
         }
     }
 
+    fn reset(&mut self) {
+        self.size = self.graph.num_nodes();
+        self.neigh_last = 0;
+
+        self.node_to_comm.clear();
+        self.inside.clear();
+        self.total.clear();
+        self.neigh_weight.clear();
+        self.neigh_pos.clear();
+
+        self.node_to_comm.resize(self.size, None);
+        self.inside.resize(self.size, 0.0);
+        self.total.resize(self.size, 0.0);
+
+        for node in 0..self.size {
+            self.node_to_comm[node] = Some(node);
+            self.inside[node] = self.graph.loops(node);
+            self.total[node] = self.graph.wdeg(node);
+        }
+
+        self.neigh_weight.resize(self.size, -1.0);
+        self.neigh_pos.resize(self.size, 0);
+    }
+
+    #[inline]
     fn remove(&mut self, node: usize, comm: usize, dnode_comm: f64) {
         assert!(node < self.size);
         self.total[comm] -= self.graph.wdeg(node);
-        self.inside[comm] -= 2.0 * dnode_comm + self.graph.loops(node) as f64;
+        self.inside[comm] -= 2.0 * dnode_comm + self.graph.loops(node);
         self.node_to_comm[node] = None;
     }
 
+    #[inline]
     fn insert(&mut self, node: usize, comm: usize, dnode_comm: f64) {
         assert!(node < self.size);
         self.total[comm] += self.graph.wdeg(node);
-        self.inside[comm] += 2.0 * dnode_comm + self.graph.loops(node) as f64;
+        self.inside[comm] += 2.0 * dnode_comm + self.graph.loops(node);
         self.node_to_comm[node] = Some(comm);
     }
 
@@ -126,16 +148,15 @@ impl Community {
         let mut q = 0.0;
         let t = self.graph.weight_sum();
         for (node, wdeg) in self.total.iter().enumerate().filter(|(_, &w)| w > 0.0) {
-            let x = wdeg / t;
-            q += self.inside[node] / t - x * x;
+            q += self.inside[node] - wdeg * wdeg / t;
         }
-        q
+        q / t
     }
 
     #[inline]
-    fn modularity_gain(&self, node: usize, comm: usize, dnode_comm: f64, wdeg: f64) -> f64 {
+    fn modularity_gain(&self, node: usize, comm: usize, dnode_comm: f64) -> f64 {
         assert!(node < self.size);
-        dnode_comm - self.total[comm] * wdeg / self.graph.weight_sum()
+        dnode_comm - self.total[comm] * self.graph.wdeg(node) / self.graph.weight_sum()
     }
 
     fn neigh_comm(&mut self, node: usize) {
@@ -147,44 +168,38 @@ impl Community {
         self.neigh_weight[self.neigh_pos[0]] = 0.0;
         self.neigh_last = 1;
 
-        for &neigh in self.graph.neighbors(node) {
-            if let Some(neigh_comm) = self.node_to_comm[neigh] {
-                if neigh != node {
-                    if self.neigh_weight[neigh_comm] < 0.0 {
-                        self.neigh_weight[neigh_comm] = 0.0;
-                        self.neigh_pos[self.neigh_last] = neigh_comm;
-                        self.neigh_last += 1;
-                    }
-                    self.neigh_weight[neigh_comm] += self.total[neigh];
+        for (&neigh, &neigh_weight) in self.graph.neighbors(node) {
+            let neigh_comm = self.node_to_comm[neigh].unwrap();
+            if neigh != node {
+                if self.neigh_weight[neigh_comm] < 0.0 {
+                    self.neigh_weight[neigh_comm] = 0.0;
+                    self.neigh_pos[self.neigh_last] = neigh_comm;
+                    self.neigh_last += 1;
                 }
+                self.neigh_weight[neigh_comm] += neigh_weight;
             }
         }
     }
 
     fn next_level(&mut self) -> bool {
+        let dist = Uniform::from(0.0..1.0);
+        let threshold = (self.size as f64).log(2.0) / self.size as f64;
         let mut rng = rand::thread_rng();
         let mut rand_order: Vec<_> = (0..self.size).collect();
         rand_order.shuffle(&mut rng);
 
         let mut improved = false;
         let mut new_mod = self.modularity();
-        //let mut iter = 0;
-        // println!("next level");
-        let dist = Uniform::from(0.0..1.0);
-        let threshold: f64 = (self.size as f64).log(2.0) / self.size as f64;
         loop {
             // reorder with probability (log n/n)
             if rng.sample(&dist) < threshold {
                 rand_order.shuffle(&mut rng);
             }
-            // println!("loop iter = {}", iter);
-            //iter += 1;
             let cur_mod = new_mod;
             let mut num_moves = 0;
 
             for &node in &rand_order {
                 let comm = self.node_to_comm[node].unwrap();
-                let wdeg = self.graph.wdeg(node);
 
                 self.neigh_comm(node);
                 self.remove(node, comm, self.neigh_weight[comm]);
@@ -194,7 +209,7 @@ impl Community {
                 let mut best_incr = 0.0;
                 for &pos in &self.neigh_pos[..self.neigh_last] {
                     let weight = self.neigh_weight[pos];
-                    let incr = self.modularity_gain(node, pos, weight, wdeg);
+                    let incr = self.modularity_gain(node, pos, weight);
                     if incr > best_incr {
                         best_comm = pos;
                         best_links = weight;
@@ -221,7 +236,7 @@ impl Community {
         improved
     }
 
-    fn partition_to_graph(&mut self) -> Graph {
+    fn partition(&mut self) -> Level {
         let mut pop = vec![false; self.size];
         for node in 0..self.size {
             let comm = self.node_to_comm[node].unwrap();
@@ -241,38 +256,40 @@ impl Community {
 
         let mut comm_nodes = vec![Vec::new(); fin];
         for node in 0..self.size {
-            comm_nodes[renumber[self.node_to_comm[node].unwrap()].unwrap()].push(node);
+            let comm = self.node_to_comm[node].unwrap();
+            let comm = renumber[comm].unwrap();
+            comm_nodes[comm].push(node);
         }
 
-        let mut degs = Vec::with_capacity(comm_nodes.len());
         let mut links = Vec::with_capacity(comm_nodes.len());
-        for nodes in comm_nodes.iter() {
+        for nodes in &comm_nodes {
             let mut comm_links = HashMap::new();
-            for &node in nodes.iter() {
-                let neighbors = self.graph.neighbors(node);
-                let neighbor_weights = self.graph.neighbor_weights(node);
-                for (&neigh, weight) in neighbors.iter().zip(neighbor_weights.iter()) {
+            for &node in nodes {
+                for (&neigh, neigh_weight) in self.graph.neighbors(node) {
                     let neigh_comm = renumber[self.node_to_comm[neigh].unwrap()];
-                    *comm_links.entry(neigh_comm).or_insert(0.0) += weight;
+                    *comm_links.entry(neigh_comm).or_insert(0.0) += neigh_weight;
                 }
             }
-            degs.push(comm_links.len() + degs.last().unwrap_or(&0));
             links.push(comm_links);
+        }
+
+        let mut coo = CooMatrix::new(links.len(), links.len());
+        for (node, neighbors) in links.iter().enumerate() {
+            for (&neigh, &neigh_weight) in neighbors {
+                let neigh_weight = neigh_weight * 0.5;
+                coo.push(node, neigh.unwrap(), neigh_weight);
+                coo.push(neigh.unwrap(), node, neigh_weight);
+            }
         }
 
         for node in 0..self.size {
             self.node_to_comm[node] = Some(renumber[self.node_to_comm[node].unwrap()].unwrap());
         }
 
-        let mut coo = CooMatrix::new(links.len(), links.len());
-        for (node, neighbors) in links.iter().enumerate() {
-            coo.push(node, node, degs[node] as f64);
-            for (&neigh, &neigh_weight) in neighbors {
-                coo.push(node, neigh.unwrap(), neigh_weight);
-                coo.push(neigh.unwrap(), node, neigh_weight);
-            }
-        }
-        Graph::from_csr(CsrMatrix::from(&coo))
+        let level = Level::new(self.node_to_comm.iter().flatten().copied().collect());
+        self.graph = Graph::from_csr(CsrMatrix::from(&coo));
+        self.reset();
+        level
     }
 }
 
@@ -293,14 +310,14 @@ impl Graph {
         for node in 0..m.nrows() {
             let start = m.row_offsets()[node];
             let end = m.row_offsets()[node + 1];
-            let mut sum = 1.0;
-            for (&nb, &w) in m.col_indices()[start..end]
+            let mut sum = 0.0;
+            for (&neigh, &neigh_weight) in m.col_indices()[start..end]
                 .iter()
                 .zip(m.values()[start..end].iter())
             {
-                sum += w;
-                if nb == node {
-                    loops[node] += w;
+                sum += neigh_weight;
+                if neigh == node {
+                    loops[node] += neigh_weight;
                 }
             }
             wsum += sum;
@@ -314,12 +331,10 @@ impl Graph {
         }
     }
 
-    fn neighbors(&self, node: usize) -> &[usize] {
-        &self.inner.col_indices()[self.neighbor_range(node)]
-    }
-
-    fn neighbor_weights(&self, node: usize) -> &[f64] {
-        &self.inner.values()[self.neighbor_range(node)]
+    fn neighbors(&self, node: usize) -> impl Iterator<Item = (&usize, &f64)> + '_ {
+        self.inner.col_indices()[self.neighbor_range(node)]
+            .iter()
+            .zip(self.inner.values()[self.neighbor_range(node)].iter())
     }
 
     #[inline]
